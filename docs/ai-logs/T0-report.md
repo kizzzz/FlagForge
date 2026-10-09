@@ -2,88 +2,59 @@
 
 执行日期：2026-10-09（Asia/Shanghai）
 项目根：`C:/Users/77230/FlagForge`
-状态：**骨架构建及前后端运行检查已通过；WSL 已成功安装，系统重启及 PostgreSQL 容器验收待完成。T0 尚未完成，波2尚未启动。**
+状态：**T0 已完成，六项验收全部通过，可进入波2。**
 
 ## 环境探测结果
 
-初次探测时 Docker 和 Go 命令缺失，按提示词停止并报告。用户随后明确授权：「由你安装所有缺失项」。以下为安装后在刷新 PATH 的 Git Bash 中重新探测的结果：
-
-| 工具 / 检查 | 实际结果 | 状态 |
-| --- | --- | --- |
-| Docker Desktop | 4.94.0，安装器返回 0，安装日志 `Installation succeeded` | 已安装至 `%LOCALAPPDATA%/Programs/DockerDesktop` |
-| `docker --version` | `Docker version 29.8.2, build 7fc2dff` | 通过 |
-| `docker compose version` | `Docker Compose version v5.5.1` | CLI 通过，容器引擎待启动 |
-| `go version` | `go version go1.27.0 windows/amd64` | ≥1.22，安装成功 |
-| `node --version` | `v24.13.0` | ≥18，原已安装 |
-| `npm --version` | `11.6.2` | 原已安装 |
-| Git / Git Bash | `C:/Program Files/Git/bin/bash.exe` 可运行，Git 可用 | 通过 |
-| golang-migrate CLI | 已通过 `go install -tags postgres ...@v4.17.1` 安装；`migrate -version` 输出 `dev`（该源码安装未注入发行版本号） | 可执行 |
-| WSL 2 | 官方 x64 MSI 重试安装返回 0；`wsl --version` 确认 2.7.13.0，内核 6.18.33.2-2 | 已安装；WSL 2 运行时待系统重启 |
-| VirtualMachinePlatform | Windows 管理员辅助脚本确认 `Enabled` | 已启用，首次启用报告需重启 |
-| Microsoft-Windows-Subsystem-Linux | `Enabled`，`RestartNeeded: true` | 已启用，待重启 |
-| 8787 / 5173 / 55432 | 初次及安装后探测均未发现占用；本次前后端验收临时使用 8787 / 5173 | 无原有端口冲突 |
-
-系统为 Windows 11 家庭版中文版，64位，build 26200。Intel i5-8300H 的固件虚拟化及 SLAT 已启用；LanmanServer 运行且自动启动。当前 Codex 进程未以管理员身份运行，软件安装及 Windows 功能启用通过系统 UAC 提权；未自动重启电脑。
+| 检查 | 最终结果 |
+| --- | --- |
+| Windows | Windows 11 家庭版中文版，build 26200；本次重启时间 2026-10-09 22:59:32 |
+| WSL | 2.7.13.0，内核 6.18.33.2-2；`wsl --status` 正常，默认版本 2 |
+| 虚拟化 | `HypervisorPresent: true`；待重启标记已清除 |
+| Docker Desktop | 4.94.0；Linux Engine 29.8.2，API 1.56 |
+| Docker CLI / Compose | Docker 29.8.2 / Compose v5.5.1 |
+| Go | `go1.27.0 windows/amd64`，满足 ≥1.22；项目 go.mod 为 `go 1.22` |
+| Node / npm | v24.13.0 / 11.6.2，满足 Node ≥18 |
+| golang-migrate | 已安装 CLI，固定源码版本 v4.17.1；源码构建 `-version` 显示 dev |
+| PostgreSQL | postgres:16，运行版本 16.15 (Debian 16.15-1.pgdg13+2)；pg_isready 接受连接 |
+| 端口 | 初次探测 8787/5173/55432 无原有占用；当前数据库使用 55432；临时验收服务已关闭并释放 8787/5173 |
 
 ## 做了什么
 
-- 动手前阅读 `docs/plan/00-README.md`、`01-design.md` §2/§3、`02-edge-cases.md` 组10，并按 T0 提示词执行。
-- 将原始提示词完整归档至 `docs/ai-logs/T0-prompt.md`，含日期与来源。
-- `backend/go.mod` / `go.sum`：module `flagforge`，`go 1.22`；依赖 Gin、GORM、PostgreSQL driver、golang-migrate、datatypes、testify。使用兼容 Go 1.22 的固定版本，未加入业务逻辑。
-- `backend/cmd/server/main.go`：读取 `DATABASE_URL`，空时使用指定默认值；Gin 监听 `:8787`，仅注册 `GET /healthz`。T0 读取数据库配置，连接及业务 API 由后续任务接入。
-- `backend/internal/{config,model,repo,service,eval,api,dto}/doc.go`：空包占位。
-- `frontend/`：以 `create-vite@5.5.2` 的 React TypeScript 模板生成，保留 React 18；安装 antd@5、react-router-dom@6、dayjs、msw@2；首页仅显示 FlagForge。
-- **API 选择原生 fetch**，遵循设计 §3。T0 不添加 API client 或业务页面，后续 T4a 实现。
-- Vite 使用端口 5173、`strictPort: true`，`/api` 代理至 `http://localhost:8787`，浏览器标题为 FlagForge。
-- `docker-compose.yml`：postgres:16，指定用户、密码、数据库，`55432:5432`，命名卷 pgdata。
-- `Makefile` 与 `scripts/{dev,migrate-up,migrate-down,seed,test,smoke,down}.sh`，共享 `scripts/common.sh`。dev 等待 PostgreSQL 就绪，已有迁移/seed 时运行，然后后台启动后端及前端；T0 尚无迁移和 seed，按条件跳过。
-- migrate 脚本查找 PATH 或 GOPATH/bin 下的 CLI；若后续提供 `backend/cmd/migrate/main.go` 则作为备选。migrate-down 回退最近一次迁移。
-- `README.md`：前置依赖、Make/Git Bash 两种方式、端口、默认 DATABASE_URL、国内源及 T0/T1 的交付边界。
-- `.gitignore` 覆盖 node_modules、dist、.env、日志、后端构建产物；`.gitattributes` 固定 Bash 脚本 LF；脚本设置可执行位。
-- Git 已初始化于项目根，分支 `codex/scaffold`；首次提交 `b4d0310 chore: scaffold project skeleton` 已完成并核对 git log。
-
-实际前端安装结果：React / React DOM 18.3.1、AntD 5.29.3、react-router-dom 6.30.6、dayjs 1.11.23、MSW 2.15.0；Vite 构建版本为 5.4.21。未实现业务表、业务路由或业务页面。
+- 必读文档：00-README、01-design §2/§3、02-edge-cases 组10；原始提示词归档至 `docs/ai-logs/T0-prompt.md`。
+- `backend/go.mod` / `go.sum`：module flagforge，Go 1.22，固定 Gin/GORM/PostgreSQL driver/golang-migrate/datatypes/testify 依赖版本。
+- `backend/cmd/server/main.go`：读取 DATABASE_URL，空时使用指定默认 URL；Gin 监听 :8787，仅注册 GET /healthz。
+- `backend/internal/{config,model,repo,service,eval,api,dto}/doc.go`：空包占位，未实现业务逻辑。
+- `frontend/`：create-vite@5.5.2 的 React TypeScript 模板，React / React DOM 18.3.1；AntD 5.29.3、react-router-dom 6.30.6、dayjs 1.11.23、MSW 2.15.0，Vite 5.4.21。
+- **选择原生 fetch**，遵循设计 §3；API client 留给 T4a。首页仅显示 FlagForge；Vite 5173 / strictPort / `/api` → http://localhost:8787。
+- `docker-compose.yml`：postgres:16，指定账号和数据库，55432:5432，命名卷 pgdata。
+- `Makefile` 与 `scripts/{dev,migrate-up,migrate-down,seed,test,smoke,down}.sh`，共享 common.sh。dev 启动 Compose、等待数据库、执行已有迁移/seed、后台起后端、起前端；Ctrl+C 清理服务。
+- migrate 脚本支持 PATH/GOPATH 下的 CLI，以及后续 `cmd/migrate/main.go` 库 API 备选；README 明确 Make 和 Git Bash 两种方式。T1 尚未提供迁移/seed 时，dev 跳过这两步；独立调用相应脚本会给出明确提示。
+- `.gitignore` 覆盖 node_modules、dist、.env、日志、后端构建产物和并行任务工作目录 .worktrees/；Bash 文件通过 .gitattributes 固定 LF，Git mode 100755。
+- Git 初始化于项目根，分支 codex/scaffold；首次提交 `b4d0310 chore: scaffold project skeleton`。最终按要求提交 `chore: T0 scaffold done`。
 
 ## 遇到的问题与解决
 
-1. **缺少 Docker / Go**：首次探测按提示词停止；获得用户明确安装授权后继续。
-2. **WinGet 下载停在 Delivery Optimization**：日志记录 Go 下载机制超时后回退 WinINet。Docker/WSL 的 HTTP 连通性及小范围请求成功，改用官方地址直接下载；WSL 直连速度较慢，按文档使用 `http://127.0.0.1:10808` 续传，未修改全局代理或 WinGet 设置。
-3. **安装包完整性**：Docker 包 635493296 字节，SHA-256 `a9814e31049d66156477a86614e83365669677733014ec72f74229623ff3890a`，与 WinGet 清单一致，数字签名 Valid / Docker Inc。Go MSI 校验为 `728e9318c061b95082bcf167bab8b6c6e0d91a045f89f403b3285fa39f0c455b`，原始 MSI 日志最终记录安装状态 0。WSL MSI 258985984 字节，SHA-256 `a3505a50f4cc585551d11d9de824ba4375448d7a68f2e71d3fb315fa986fc754`，与 Microsoft/WSL 官方 release API 一致，数字签名 Valid / Microsoft Corporation。
-4. **Windows 功能辅助脚本首次记录失败**：误读取 Enable-WindowsOptionalFeature 返回对象中不存在的 State 字段，功能实际已启用。改为重新查询 Get-WindowsOptionalFeature；再次运行返回 0，并写入 `docs/ai-logs/T0-wsl-features.json`。两次启用均使用 `-NoRestart`。
-5. **Go 安装器并行状态**：WinGet 启动器长时间等待 UAC，直接 MSI 重试返回 1618（另一安装正在执行）。核对原始 MSI 日志确认原安装已成功，随后 Git Bash `go version` 通过；未反复重装。
-6. **WSL UAC 取消及重试**：首次安装因 UAC 取消未开始；用户随后明确授权「重试并继续」。使用已校验 MSI 重试返回 0，安装日志确认成功；`wsl --version` 返回 0，版本为 2.7.13.0。
-7. **Docker 引擎不可用**：实际 `docker compose up -d` 返回 1：`failed to connect to the docker API ... open //./pipe/docker_engine: The system cannot find the file specified`。WSL 安装及重启后再启动 Docker Desktop 并重验。
+1. 初次缺少 Docker / Go，按 T0 提示词停止报告。用户授权「由你安装所有缺失项」后安装；WSL 首次 UAC 取消后，经用户「重试并继续」授权重试成功。用户完成系统重启后，虚拟化和 Docker 引擎正常。
+2. WinGet Delivery Optimization 下载停滞，使用官方地址直接下载并校验 SHA-256 / 数字签名；WSL 慢速下载按提示词用 http://127.0.0.1:10808 续传。未修改全局代理或 WinGet 配置。
+3. Docker 安装包 SHA-256 `a9814e31049d66156477a86614e83365669677733014ec72f74229623ff3890a`；Go MSI `728e9318c061b95082bcf167bab8b6c6e0d91a045f89f403b3285fa39f0c455b`；WSL MSI `a3505a50f4cc585551d11d9de824ba4375448d7a68f2e71d3fb315fa986fc754`，均与官方清单 / release API 一致。
+4. Windows 功能辅助脚本首次误读取 Enable-WindowsOptionalFeature 返回值的 State；修正为重新查询后运行成功。Go 直接 MSI 重试曾遇 1618，确认原始安装已成功后未重复重装。原始安装经过保留在此前 Git 报告版本和本地 *.log 中。
+5. Docker Desktop 首次启动需初始化 WSL 数据盘，postgres:16 首次拉取较慢；等待下载及解压完成后 Compose 启动成功，pg_isready 和 SQL 版本查询通过。
 
-安装依据：[Docker Windows 官方说明](https://docs.docker.com/desktop/setup/install/windows-install/)、[Microsoft WSL 安装说明](https://learn.microsoft.com/en-us/windows/wsl/install)、[WSL 2.7.13 官方发布](https://github.com/microsoft/WSL/releases/tag/2.7.13)。WSL 已校验安装包缓存于 `%LOCALAPPDATA%/Temp/FlagForge-T0-install/wsl.2.7.13.0.x64.msi`，重试可直接使用，无须重新下载。
+安装来源：[Docker 官方说明](https://docs.docker.com/desktop/setup/install/windows-install/)、[Microsoft WSL 说明](https://learn.microsoft.com/en-us/windows/wsl/install)、[WSL 2.7.13 官方发布](https://github.com/microsoft/WSL/releases/tag/2.7.13)。
 
 ## 未尽事项 / 需要人工决策
 
-- WSL 重试安装已成功，本次缺失软件已安装；无需再次确认安装授权。
-- Windows 已明确报告功能启用需要重启。请保存工作后人工重启，重新打开 Codex/终端刷新 PATH，并启动 Docker Desktop。未执行自动重启。
-- 重启后确认 `wsl --version`、Docker daemon；执行 `docker compose up -d` 和 `docker compose exec -T postgres pg_isready -U flagforge -d flagforge`。
-- PostgreSQL 验收通过后，更新本报告并执行指定最终提交 `chore: T0 scaffold done`。
-- **仅 T0 完整验收后，才同时启动波2的 T1、T2、T4a 三个 agent。当前尚未启动。**
-- migrate/seed 的具体内容属于 T1；当前独立执行相应脚本会明确提示 T1 文件尚未交付，不能将其视为已验证的数据层。
+- **T0 无未完成项，无待人工决策。**
+- 迁移、seed、业务 API 和业务页面分别属于后续任务，本次未提前实现。
+- PostgreSQL 保持运行，供 T1 使用；Compose project 名为 flagforge，容器为 flagforge-postgres-1。
+- 按用户要求，T0 完成后同时启动 T1 ∥ T2 ∥ T4a；使用独立 Git worktree，完成后审查和合并。
 
 ## 验收自验清单
 
-- [ ] `docker compose up -d` 后 pg_isready 或后端连接成功——Docker daemon 尚未可用；WSL 已安装，待系统重启使 Windows 可选功能生效后继续验收。
-- [x] `cd backend && go build ./...`——`go build -mod=mod ./...` 返回 0，另 `go vet ./...`、`go test ./...` 返回 0；T0 各包均 `[no test files]`。
-- [x] `cd backend && go run ./cmd/server` 后 healthz——Gin 监听 8787；HTTP 200，body 为 `{"status":"ok"}`。
-- [x] `cd frontend && npm run dev` 起在 5173，浏览器见标题——Vite 输出 `http://localhost:5173/`；HTTP 200，Codex 浏览器实际 DOM 为 heading FlagForge；`npm run build` / `npm run lint` 均返回 0。
-- [x] Make 或 scripts 目标齐全可执行——所有 Bash 文件 `bash -n` 返回 0；test、smoke 实跑；migrate/seed 对尚无 T1 文件返回预期提示；Compose 配置 `docker compose config --quiet` 返回 0。机器未探测到 make，使用脚本等价入口；Docker 相关运行验收仍受前述引擎限制。
-- [x] git log 有首次 commit——`b4d0310 chore: scaffold project skeleton`，脚本 Git mode 全部为 100755。
-
-仅以上已实际执行并通过的项目打勾；不能将骨架构建成功视为完整 T0 验收通过。
-
-临时 healthz / Vite 验收服务及浏览器页面已关闭，释放 8787 / 5173；源码、依赖和已校验安装包保留，等待恢复验收。
-
-## WSL 重试安装结果（2026-10-09）
-
-- 用户指令：「重试并继续」。重新核对缓存 MSI 的 SHA-256 后，以 `/qn /norestart` 安装，MSI exit code 0，日志 `MainEngineThread is returning 0`。
-- `wsl --version` 返回 0：WSL 2.7.13.0 / Linux kernel 6.18.33.2-2 / Windows 10.0.26200.9457。
-- `wsl --status` 的命令退出码为 0，但正文明确提示「WSL2 无法启动，因为此计算机上未启用虚拟化」。不能仅凭退出码判定运行时已可用。
-- `HKLM/SOFTWARE/Microsoft/Windows/CurrentVersion/Component Based Servicing/RebootPending` 存在；本次功能启用后系统尚未重启。`LastBootUpTime` 仍为 2026-10-01 12:09:29。
-- 原始硬件探测显示固件虚拟化和 SLAT 已开启；Windows 可选功能已启用，但此前已明确报告 RestartNeeded。先人工重启，使新功能生效，再检查运行时；本次未修改 BIOS 或自动重启机器。
-- 已尝试启动 Docker Desktop，daemon 探测仍返回 1（docker_engine 管道不存在）。T0 的 PostgreSQL 验收尚未通过，因此不会创建 `chore: T0 scaffold done` 提交或提前启动波2。
-- 恢复入口：人工保存其他工作并重启 → 重新打开本聊天，告知「已重启，继续」→ 检查 WSL/Docker → 启动 postgres:16 并 pg_isready → 完成 T0 报告和提交 → 同时启动 T1 ∥ T2 ∥ T4a。
+- [x] `docker compose up -d` 后 PG 可连——容器 flagforge-postgres-1 正常运行；`docker compose exec -T postgres pg_isready -U flagforge -d flagforge` 输出 accepting connections；psql SHOW server_version 返回 16.15。
+- [x] `cd backend && go build ./...` 零报错——返回 0；go vet ./...、go test ./... 同样返回 0（T0 空包暂无测试）。
+- [x] `cd backend && go run ./cmd/server` 后 curl healthz 返回 ok——HTTP 200，body `{"status":"ok"}`。
+- [x] `cd frontend && npm run dev` 起在 5173，浏览器见标题——Vite 正常启动；Codex 浏览器实际 heading FlagForge；npm run build 和 npm run lint 返回 0。
+- [x] Make 或 scripts 目标齐全可执行——所有 Bash 文件语法通过；test/smoke 实跑；`bash scripts/dev.sh` 成功启动 Compose、后端、前端，healthz 和首页均 HTTP 200，Ctrl+C 后 8787/5173 无监听。迁移/seed 的交付边界明确。
+- [x] git log 有首次 commit——`b4d0310 chore: scaffold project skeleton`；脚本均为 100755。

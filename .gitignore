@@ -9,5 +9,6 @@ backend/server
 backend/server.exe
 backend/*.exe
 coverage.out
+.worktrees/
 *.tsbuildinfo
 .DS_Store
