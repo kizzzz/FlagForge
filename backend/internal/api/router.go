@@ -33,4 +33,12 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	v1.PATCH("/flags/:id", h.Update)
 	v1.PATCH("/flags/:id/status", h.Status)
 	v1.GET("/flags/:id/history", h.History)
+	v1.POST("/flags/:id/copy", h.Copy)
+	rules := NewRuleHandler(service.NewRuleService(db))
+	v1.POST("/flags/:id/rules", rules.Create)
+	v1.PATCH("/flags/:id/rules/:rid", rules.Update)
+	v1.DELETE("/flags/:id/rules/:rid", rules.Delete)
+	evaluator := NewEvaluatorHandler(service.NewEvaluatorService(db))
+	v1.POST("/evaluate", evaluator.Evaluate)
+	v1.POST("/evaluate/batch", evaluator.Batch)
 }
