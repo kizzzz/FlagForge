@@ -12,6 +12,19 @@
 .edit-card { max-width: 720px; margin: auto; }
 .readonly-label { cursor: help; border-bottom: 1px dashed #8c8c8c; }
 .ant-layout-footer { text-align: center; }
+.console-grid { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(480px, 1.3fr); gap: 20px; }
+.console-target { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+.json-editor, code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.evaluation-value { font-size: 64px; font-weight: 700; line-height: 1.4; }
+.value-true { color: #16776b; }
+.value-false { color: #737b78; }
+.trace-hit > td { background: #e9f7ee !important; }
+.diff-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.diff-old, .diff-old .ant-tag { color: #cf1322; text-decoration: line-through; }
+.diff-new, .diff-new .ant-tag { color: #237804; }
+.history-object { max-width: 650px; background: #f8faf9; }
+.distribution-row { max-width: 800px; margin-bottom: 8px; }
+@media (max-width: 1000px) { .console-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
   .app-header { padding: 0 16px; gap: 16px; }
   .app-content { width: calc(100% - 24px); margin-top: 16px; }

@@ -91,3 +91,24 @@ export const flagApi = {
   setStatus: (id: string, enabled: boolean, options?: RequestOptions) => request<Flag>(`/flags/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, options),
   history: (id: string, query: { page?: number; page_size?: number } = {}, options?: RequestOptions) => request<Paged<History>>(`/flags/${encodeURIComponent(id)}/history?${queryString(query)}`, {}, options),
 }
+
+export type RuleInput = Pick<Rule, 'attribute' | 'operator' | 'expected_value' | 'roll_value' | 'priority'>
+export type Cause = 'matched' | 'attribute_missing' | 'value_not_equal' | 'value_not_in_list' | 'type_mismatch' | 'short_circuited_by_disabled_flag'
+export interface TraceStep { rule_id?: string; priority?: number; attribute?: string; operator?: Rule['operator']; matched: boolean; cause: Cause }
+export interface Reason { type: 'rule_hit' | 'default' | 'disabled'; rule_id?: string; priority?: number; summary?: string }
+export interface Evaluation { flag_key: string; environment: Environment; enabled: boolean; value: boolean; reason: Reason; trace: TraceStep[]; evaluated_at: string }
+export interface EvaluationInput { flag_key: string; environment: Environment; user_attributes: Record<string, unknown> }
+export interface BatchResult {
+  results: { index: number; value: boolean; reason: Reason; trace: TraceStep[] }[]
+  summary: { total: number; true_count: number; false_count: number; default_count: number; hit_rules: { rule_id: string; priority: number; attribute: string; count: number }[] }
+}
+export const ruleApi = {
+  create: (id: string, body: RuleInput, options?: RequestOptions) => request<Rule>(`/flags/${encodeURIComponent(id)}/rules`, { method: 'POST', body: JSON.stringify(body) }, options),
+  update: (id: string, rid: string, body: RuleInput, options?: RequestOptions) => request<Rule>(`/flags/${encodeURIComponent(id)}/rules/${encodeURIComponent(rid)}`, { method: 'PATCH', body: JSON.stringify(body) }, options),
+  remove: (id: string, rid: string, options?: RequestOptions) => request<void>(`/flags/${encodeURIComponent(id)}/rules/${encodeURIComponent(rid)}`, { method: 'DELETE' }, options),
+}
+export const evaluationApi = {
+  evaluate: (body: EvaluationInput, options?: RequestOptions) => request<Evaluation>('/evaluate', { method: 'POST', body: JSON.stringify(body) }, options),
+  batch: (body: Omit<EvaluationInput, 'user_attributes'> & { user_attributes_list: Record<string, unknown>[] }, options?: RequestOptions) => request<BatchResult>('/evaluate/batch', { method: 'POST', body: JSON.stringify(body) }, options),
+}
+export const copyFlag = (id: string, target_environment: Environment, options?: RequestOptions) => request<Flag>(`/flags/${encodeURIComponent(id)}/copy`, { method: 'POST', body: JSON.stringify({ target_environment }) }, options)

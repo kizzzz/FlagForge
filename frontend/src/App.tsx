@@ -5,6 +5,8 @@ import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-do
 import { setApiErrorReporter } from './api/client'
 import FlagListPage from './pages/FlagListPage'
 import FlagEditPage from './pages/FlagEditPage'
+import FlagDetailPage from './pages/FlagDetailPage'
+import ConsolePage from './pages/ConsolePage'
 import './App.css'
 
 function Shell() {
@@ -27,8 +29,8 @@ function Shell() {
         <Route path="/" element={<FlagListPage />} />
         <Route path="/flags/new" element={<FlagEditPage />} />
         <Route path="/flags/:id/edit" element={<FlagEditPage />} />
-        <Route path="/flags/:id" element={<Result title="Flag 详情" subTitle="T4b 实现" extra={<Link to="/">返回列表</Link>} />} />
-        <Route path="/console" element={<Result title="评估控制台" subTitle="T4b 实现" />} />
+        <Route path="/flags/:id" element={<FlagDetailPage />} />
+        <Route path="/console" element={<ConsolePage />} />
         <Route path="*" element={<Result status="404" title="页面不存在" extra={<Link to="/">返回列表</Link>} />} />
       </Routes>
     </Layout.Content>

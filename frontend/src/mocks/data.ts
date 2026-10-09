@@ -22,12 +22,17 @@ export const flags: Flag[] = Array.from({ length: 26 }, (_, index) => {
     updated_at: timestamp,
   }
 })
+const ruleSeeds: Pick<Rule, 'attribute' | 'operator' | 'expected_value' | 'roll_value'>[][] = [
+  [{ attribute: 'country', operator: 'in', expected_value: ['US', 'CA', 'GB'], roll_value: true }, { attribute: 'plan', operator: 'equals', expected_value: 'pro', roll_value: true }, { attribute: 'user_id', operator: 'in', expected_value: [9001, 9002, 9003], roll_value: true }],
+  [{ attribute: 'country', operator: 'equals', expected_value: 'CN', roll_value: false }],
+  [{ attribute: 'plan', operator: 'in', expected_value: ['pro', 'team'], roll_value: true }, { attribute: 'beta_tester', operator: 'equals', expected_value: true, roll_value: true }],
+  [{ attribute: 'plan', operator: 'equals', expected_value: 'pro', roll_value: true }],
+]
 export const rules: Rule[] = flags.slice(0, 4).flatMap((flag, index) =>
-  Array.from({ length: [3, 1, 2, 1][index] }, (_, ruleIndex) => ({
+  ruleSeeds[index].map((seedRule, ruleIndex) => ({
     id: `10000000-0000-4000-8000-${String(index * 3 + ruleIndex + 1).padStart(12, '0')}`,
     flag_id: flag.id,
-    attribute: 'plan', operator: 'equals' as const, expected_value: 'pro',
-    roll_value: true, priority: ruleIndex + 1, created_at: timestamp, updated_at: timestamp,
+    ...seedRule, priority: ruleIndex + 1, created_at: timestamp, updated_at: timestamp,
   })),
 )
 export const histories = new Map<string, History[]>(flags.map(flag => [flag.id, [{
@@ -41,3 +46,15 @@ export function recordHistory(flag: Flag, action: string, summary: Record<string
   list.unshift({ id: nextId++, action, operator: 'admin', summary, created_at: new Date().toISOString() })
   histories.set(flag.id, list)
 }
+
+// Demonstration audit trail covers all eight contractual actions; not a claim about real seed history.
+const sample = flags[0], demoRule = rules[1]
+for (const [action, summary] of [
+  ['flag_updated', { changes: { name: { old: '结账页试验', new: sample.name }, default_value: { old: true, new: false } } }],
+  ['flag_disabled', { changes: { enabled: { old: true, new: false } } }],
+  ['flag_enabled', { changes: { enabled: { old: false, new: true } } }],
+  ['rule_created', { rule: demoRule }],
+  ['rule_updated', { rule_id: demoRule.id, priority: 2, changes: { roll_value: { old: false, new: true } } }],
+  ['rule_deleted', { rule: { ...demoRule, priority: 4, attribute: 'legacy_user' } }],
+  ['flag_copied', { flag: { name: sample.name, key: sample.key, environment: sample.environment, enabled: false, default_value: false }, source: { flag_id: flags[1].id, environment: 'development' } }],
+] as [string, Record<string, unknown>][]) recordHistory(sample, action, summary)

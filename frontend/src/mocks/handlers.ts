@@ -2,6 +2,7 @@ import { delay, http, HttpResponse } from 'msw'
 import { environments } from '../api/client'
 import type { Flag } from '../api/client'
 import { flags, histories, recordHistory, rules } from './data'
+import { detailHandlers } from './detailHandlers'
 
 const base = '/api/v1/flags'
 const error = (status: number, code: string, message: string, details: unknown = {}) => HttpResponse.json({ error: { code, message, details } }, { status })
@@ -57,6 +58,7 @@ const validName = (name: unknown) => typeof name === 'string' && [...name.trim()
 let failBillingStatusOnce = true
 
 export const handlers = [
+  ...detailHandlers({ body, error, invalid, notFound }),
   http.get(base, async ({ request }) => {
     await delay(450)
     const url = new URL(request.url)
