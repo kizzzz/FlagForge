@@ -3,8 +3,11 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"flagforge/internal/api"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -12,14 +15,24 @@ func main() {
 	if databaseURL == "" {
 		databaseURL = "postgres://flagforge:flagforge@localhost:55432/flagforge?sslmode=disable"
 	}
-	// The data/API tasks will use this configuration to initialize persistence.
-	_ = databaseURL
-
-	router := gin.Default()
-	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
-	if err := router.Run(":8787"); err != nil {
+	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{NowFunc: func() time.Time { return time.Now().UTC() }})
+	if err != nil {
+		log.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer sqlDB.Close()
+	if err = sqlDB.Ping(); err != nil {
+		log.Fatal(err)
+	}
+	router := api.NewRouter(db)
+	address := os.Getenv("SERVER_ADDR")
+	if address == "" {
+		address = ":8787"
+	}
+	if err := router.Run(address); err != nil {
 		log.Fatal(err)
 	}
 }
