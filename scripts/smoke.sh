@@ -8,8 +8,8 @@ node -e 'if (Number(process.versions.node.split(".")[0]) < 18) process.exit(1)' 
 base_url="${BASE_URL:-http://localhost:8787}"
 base_url="${base_url%/}"
 temp_dir="$(mktemp -d)"
-trap 'rm -rf -- "$temp_dir"' EXIT
 response="$temp_dir/response.json"
+trap 'rm -f -- "$response"; rmdir -- "$temp_dir"' EXIT
 flag_key="smoke-$(node -e 'console.log(Date.now().toString(36)+"-"+require("node:crypto").randomBytes(4).toString("hex"))')"
 
 request() {

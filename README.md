@@ -17,7 +17,7 @@
 
 ## 2. 快速开始
 
-依赖：Go ≥1.22、Node ≥18 + npm、Git Bash（Windows）或 Bash、curl、Docker Desktop/Engine + Compose（Linux 容器）。使用 PostgreSQL 16，可改用已有本地 PostgreSQL。GNU Make 可选。默认端口：前端 5173、Go 8787、PG 55432。Windows 安装后重新打开终端刷新 PATH；Docker Desktop 使用 WSL2 时首次启用虚拟机平台可能需要重启。
+依赖：Go ≥1.22、Node 24.x + npm（本次验证 24.13.0）、Git Bash（Windows）或 Bash、curl、Docker Desktop/Engine + Compose（Linux 容器）。计划的 Node 18 基线满足 smoke 自身，但当前锁定的前端传递依赖要求更高版本；前端请使用已验证的 Node 24.x。使用 PostgreSQL 16，可改用已有本地 PostgreSQL。GNU Make 可选。默认端口：前端 5173、Go 8787、PG 55432。Windows 安装后重新打开终端刷新 PATH；Docker Desktop 使用 WSL2 时首次启用虚拟机平台可能需要重启。
 
 在仓库根目录 Git Bash/Bash 安装迁移工具与依赖：
 
@@ -194,6 +194,7 @@ docs/ai-logs/
 ├── session-main.md                 # 原设计过程摘要
 ├── session-completion.md           # Codex后续补齐调度/集成
 ├── T0-prompt.md / T0-report.md
+├── T0-wsl-features.json             # 安装环境检查记录
 ├── T1-prompt.md / T1-report.md
 ├── T2-prompt.md / T2-report.md
 ├── T3a-prompt.md / T3a-report.md
