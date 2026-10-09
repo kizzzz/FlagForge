@@ -1,3 +1,19 @@
-#root {
-  padding: 32px;
+.app-shell { min-height: 100vh; }
+.app-header { display: flex; align-items: center; gap: 40px; background: #fff; border-bottom: 1px solid #e8eceb; padding: 0 32px; }
+.brand { color: #145b53; font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+.app-header .ant-menu { flex: 1; min-width: 0; }
+.app-content { margin: 28px auto; width: calc(100% - 64px); max-width: 1440px; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.page-heading .ant-typography { margin: 0; }
+.filter-bar { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; }
+.filter-bar .ant-select { width: 172px; }
+.filter-bar .ant-input-affix-wrapper { width: 300px; }
+.flag-key { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+.edit-card { max-width: 720px; margin: auto; }
+.readonly-label { cursor: help; border-bottom: 1px dashed #8c8c8c; }
+.ant-layout-footer { text-align: center; }
+@media (max-width: 640px) {
+  .app-header { padding: 0 16px; gap: 16px; }
+  .app-content { width: calc(100% - 24px); margin-top: 16px; }
+  .filter-bar .ant-input-affix-wrapper { width: 100%; }
 }
