@@ -100,3 +100,20 @@ Vite 生产包约 1.07 MB（gzip 340.7 KB）存在 >500 KB chunk 提示，不是
 - [x] 同环境重复key409→字段内联。
 - [x] 编辑态key/environment只读与D6 tooltip。
 - [x] npm run build零TS错误；npm run lint通过。
+
+## 规格复审修复：INVALID_JSON 位置（2026-10-09）
+
+复审复现了原版 mock 的 P2：body() 使用 request.json() 后吞掉 SyntaxError，并把非法 JSON 与合法 JSON 非对象统一返回 undefined；三个写入端点因此返回固定 INVALID_JSON 文案，不含 §6.6 要求的位置。
+
+修复前先用 Node 内存脚本通过 esbuild 加载本 worktree 的实际 handlers（仅将相对 base 适配 http://localhost 后注册 MSW setupServer，不启动真实服务，不添加测试框架或持久测试文件）。POST flags、PATCH flag、PATCH status 对 {"name":} 与 {"name": 共六次响应均是400 INVALID_JSON，但位置断言全部失败，脚本 exit 1，Missing location failures: 6。
+
+修复统一 body 解析函数：读取原始文本、JSON.parse，返回 input 或完整错误 Response。JSON 语法错误保留原异常文案，并在 message/details 中提供位置；合法 JSON 的数组、null、标量返回400 VALIDATION_ERROR，details.field=body，不再伪称语法错误。位置按以下顺序获得：解析器 position；解析器 line/column；明确 unexpected end 使用真实输入末尾；解析器只提供 token 时，仅在该 token 在原文唯一出现的情况下计算偏移。无法精确定位时明确提示「解析器未提供精确错误位置」，给出真实输入范围和 position:null，不硬编码错误位置。偏移单位标注 UTF-16，0起；行/列为1起。
+
+修复后同一实际 handlers 内存验证得到 GREEN checks: 37、exit 0：
+
+- 三端点各验证6种语法错误（18项）：非法token {"name":} → offset8/line1/column9；EOF {"name": → offset8；多行非法token → offset9/line2/column8；数字前导零解析器位置 → offset9；未闭合字符串解析器位置 → offset10；重复 token 无唯一位置 → position:null及真实输入范围。
+- 三端点各验证4种合法非对象 JSON（12项）：[] / null / "plain" / 42 → VALIDATION_ERROR，body 字段定位。
+- 正常创建201、正常编辑200、正常启停200、重复key409 DUPLICATE_FLAG_KEY、编辑key400 IMMUTABLE_FIELD（5项）。
+- 内存辅助断言解析器 line/column 转 offset、完全缺失位置时诚实兜底（2项）；未向生产源码导出测试函数。
+
+重新 npm run build：exit0、零TS错误、1475 modules、built in 10.02s；npm run lint：exit0、零错误/警告；git diff --check：exit0。原有Vite chunk大小提示仍存在。仅修改 frontend/src/mocks/handlers.ts 和本报告，组件、fetch、UI与依赖均未变化；未重启前端/后端服务。

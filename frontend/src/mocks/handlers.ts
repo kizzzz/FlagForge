@@ -17,13 +17,42 @@ function paged<T>(items: T[], paging: { page: number; page_size: number }) {
   const { page, page_size } = paging
   return { items: items.slice((page - 1) * page_size, page * page_size), page, page_size, total: items.length }
 }
-async function body(request: Request): Promise<Record<string, unknown> | undefined> {
-  try {
-    const value = await request.json()
-    return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined
-  } catch { return undefined }
+function jsonErrorLocation(raw: string, reason: string) {
+  const position = reason.match(/\bposition\s+(\d+)/i)
+  const lineColumn = reason.match(/\bline\s+(\d+)\s+column\s+(\d+)/i)
+  let offset = position ? Number(position[1]) : undefined
+  if (offset === undefined && lineColumn) {
+    const lines = raw.split('\n')
+    const line = Number(lineColumn[1])
+    if (line >= 1 && line <= lines.length) offset = lines.slice(0, line - 1).reduce((length, text) => length + text.length + 1, 0) + Number(lineColumn[2]) - 1
+  }
+  if (offset === undefined && /unexpected end|end of (?:json|data)/i.test(reason)) offset = raw.length
+  if (offset === undefined) {
+    // Some V8 errors name a token without its offset. Only infer a unique occurrence.
+    const token = reason.match(/^Unexpected token '([^']+)'/i)?.[1]
+    if (token && raw.indexOf(token) >= 0 && raw.indexOf(token) === raw.lastIndexOf(token)) offset = raw.indexOf(token)
+  }
+  if (offset === undefined || offset < 0 || offset > raw.length) {
+    return { message: `解析器未提供精确错误位置；输入位置范围 0–${raw.length}`, details: { input_length: raw.length, offset_unit: 'UTF-16', position: null } }
+  }
+  const prefix = raw.slice(0, offset).split('\n')
+  const line = prefix.length
+  const column = prefix[prefix.length - 1].length + 1
+  return { message: `位置 ${offset}（第 ${line} 行，第 ${column} 列；UTF-16 偏移从 0 开始）`, details: { position: offset, line, column, offset_unit: 'UTF-16' } }
 }
-const badJson = () => error(400, 'INVALID_JSON', '请求必须是合法 JSON 对象')
+async function body(request: Request): Promise<{ input: Record<string, unknown> } | { response: Response }> {
+  const raw = await request.text()
+  try {
+    const value: unknown = JSON.parse(raw)
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? { input: value as Record<string, unknown> }
+      : { response: invalid('body', '请求 JSON 必须是对象，不能是数组、null 或标量') }
+  } catch (cause) {
+    const reason = cause instanceof Error ? cause.message : 'JSON 解析失败'
+    const location = jsonErrorLocation(raw, reason)
+    return { response: error(400, 'INVALID_JSON', `JSON 语法错误：${location.message}。${reason}`, location.details) }
+  }
+}
 const validName = (name: unknown) => typeof name === 'string' && [...name.trim()].length >= 1 && [...name.trim()].length <= 100
 let failBillingStatusOnce = true
 
@@ -45,8 +74,9 @@ export const handlers = [
   }),
   http.post(base, async ({ request }) => {
     await delay(600)
-    const input = await body(request)
-    if (!input) return badJson()
+    const parsed = await body(request)
+    if ('response' in parsed) return parsed.response
+    const { input } = parsed
     if (!validName(input.name)) return invalid('name', 'trim 后长度须为 1–100')
     if (typeof input.key !== 'string' || !/^[a-z][a-z0-9._-]{1,63}$/.test(input.key)) return error(400, 'INVALID_KEY', 'key 格式无效')
     if (!environments.includes(input.environment as Flag['environment'])) return error(400, 'INVALID_ENVIRONMENT', '环境无效')
@@ -78,8 +108,9 @@ export const handlers = [
     await delay(900)
     const flag = flags.find(flag => flag.id === params.id)
     if (!flag) return notFound()
-    const input = await body(request)
-    if (!input) return badJson()
+    const parsed = await body(request)
+    if ('response' in parsed) return parsed.response
+    const { input } = parsed
     if (typeof input.enabled !== 'boolean') return invalid('enabled', '必须为布尔值')
     // Deterministic mock-only failure for the rollback acceptance check; retry succeeds.
     if (flag.key === 'billing-portal' && failBillingStatusOnce) {
@@ -97,8 +128,9 @@ export const handlers = [
     await delay(600)
     const flag = flags.find(flag => flag.id === params.id)
     if (!flag) return notFound()
-    const input = await body(request)
-    if (!input) return badJson()
+    const parsed = await body(request)
+    if ('response' in parsed) return parsed.response
+    const { input } = parsed
     if ('key' in input || 'environment' in input) return error(400, 'IMMUTABLE_FIELD', 'key 与 environment 创建后不可变')
     if ('name' in input && !validName(input.name)) return invalid('name', 'trim 后长度须为 1–100')
     if ('default_value' in input && typeof input.default_value !== 'boolean') return invalid('default_value', '必须为布尔值')
