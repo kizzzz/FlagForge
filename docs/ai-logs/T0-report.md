@@ -40,7 +40,7 @@
 - migrate 脚本查找 PATH 或 GOPATH/bin 下的 CLI；若后续提供 `backend/cmd/migrate/main.go` 则作为备选。migrate-down 回退最近一次迁移。
 - `README.md`：前置依赖、Make/Git Bash 两种方式、端口、默认 DATABASE_URL、国内源及 T0/T1 的交付边界。
 - `.gitignore` 覆盖 node_modules、dist、.env、日志、后端构建产物；`.gitattributes` 固定 Bash 脚本 LF；脚本设置可执行位。
-- Git 已初始化于项目根，分支 `codex/scaffold`；首次骨架提交待报告写入后执行。
+- Git 已初始化于项目根，分支 `codex/scaffold`；首次提交 `b4d0310 chore: scaffold project skeleton` 已完成并核对 git log。
 
 实际前端安装结果：React / React DOM 18.3.1、AntD 5.29.3、react-router-dom 6.30.6、dayjs 1.11.23、MSW 2.15.0；Vite 构建版本为 5.4.21。未实现业务表、业务路由或业务页面。
 
@@ -72,6 +72,8 @@
 - [x] `cd backend && go run ./cmd/server` 后 healthz——Gin 监听 8787；HTTP 200，body 为 `{"status":"ok"}`。
 - [x] `cd frontend && npm run dev` 起在 5173，浏览器见标题——Vite 输出 `http://localhost:5173/`；HTTP 200，Codex 浏览器实际 DOM 为 heading FlagForge；`npm run build` / `npm run lint` 均返回 0。
 - [x] Make 或 scripts 目标齐全可执行——所有 Bash 文件 `bash -n` 返回 0；test、smoke 实跑；migrate/seed 对尚无 T1 文件返回预期提示；Compose 配置 `docker compose config --quiet` 返回 0。机器未探测到 make，使用脚本等价入口；Docker 相关运行验收仍受前述引擎限制。
-- [ ] git log 有首次 commit——已初始化，首次提交待本报告落盘后执行，再核对 git log。
+- [x] git log 有首次 commit——`b4d0310 chore: scaffold project skeleton`，脚本 Git mode 全部为 100755。
 
 仅以上已实际执行并通过的项目打勾；不能将骨架构建成功视为完整 T0 验收通过。
+
+临时 healthz / Vite 验收服务及浏览器页面已关闭，释放 8787 / 5173；源码、依赖和已校验安装包保留，等待恢复验收。
