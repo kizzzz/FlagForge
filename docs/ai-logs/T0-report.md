@@ -2,7 +2,7 @@
 
 执行日期：2026-10-09（Asia/Shanghai）
 项目根：`C:/Users/77230/FlagForge`
-状态：**骨架构建及前后端运行检查已通过；WSL 安装、系统重启及 PostgreSQL 容器验收待完成。T0 尚未完成，波2尚未启动。**
+状态：**骨架构建及前后端运行检查已通过；WSL 已成功安装，系统重启及 PostgreSQL 容器验收待完成。T0 尚未完成，波2尚未启动。**
 
 ## 环境探测结果
 
@@ -18,7 +18,7 @@
 | `npm --version` | `11.6.2` | 原已安装 |
 | Git / Git Bash | `C:/Program Files/Git/bin/bash.exe` 可运行，Git 可用 | 通过 |
 | golang-migrate CLI | 已通过 `go install -tags postgres ...@v4.17.1` 安装；`migrate -version` 输出 `dev`（该源码安装未注入发行版本号） | 可执行 |
-| WSL 2 | 2.7.13 官方 x64 MSI 已下载并校验；UAC 弹窗返回「操作已被用户取消」 | 尚未安装，等待是否重试的答复 |
+| WSL 2 | 官方 x64 MSI 重试安装返回 0；`wsl --version` 确认 2.7.13.0，内核 6.18.33.2-2 | 已安装；WSL 2 运行时待系统重启 |
 | VirtualMachinePlatform | Windows 管理员辅助脚本确认 `Enabled` | 已启用，首次启用报告需重启 |
 | Microsoft-Windows-Subsystem-Linux | `Enabled`，`RestartNeeded: true` | 已启用，待重启 |
 | 8787 / 5173 / 55432 | 初次及安装后探测均未发现占用；本次前后端验收临时使用 8787 / 5173 | 无原有端口冲突 |
@@ -51,14 +51,14 @@
 3. **安装包完整性**：Docker 包 635493296 字节，SHA-256 `a9814e31049d66156477a86614e83365669677733014ec72f74229623ff3890a`，与 WinGet 清单一致，数字签名 Valid / Docker Inc。Go MSI 校验为 `728e9318c061b95082bcf167bab8b6c6e0d91a045f89f403b3285fa39f0c455b`，原始 MSI 日志最终记录安装状态 0。WSL MSI 258985984 字节，SHA-256 `a3505a50f4cc585551d11d9de824ba4375448d7a68f2e71d3fb315fa986fc754`，与 Microsoft/WSL 官方 release API 一致，数字签名 Valid / Microsoft Corporation。
 4. **Windows 功能辅助脚本首次记录失败**：误读取 Enable-WindowsOptionalFeature 返回对象中不存在的 State 字段，功能实际已启用。改为重新查询 Get-WindowsOptionalFeature；再次运行返回 0，并写入 `docs/ai-logs/T0-wsl-features.json`。两次启用均使用 `-NoRestart`。
 5. **Go 安装器并行状态**：WinGet 启动器长时间等待 UAC，直接 MSI 重试返回 1618（另一安装正在执行）。核对原始 MSI 日志确认原安装已成功，随后 Git Bash `go version` 通过；未反复重装。
-6. **WSL UAC 取消**：WSL MSI 安装未开始，系统返回「操作已被用户取消」。已询问是否重试，等待答复，不将下载完成视为安装完成。
+6. **WSL UAC 取消及重试**：首次安装因 UAC 取消未开始；用户随后明确授权「重试并继续」。使用已校验 MSI 重试返回 0，安装日志确认成功；`wsl --version` 返回 0，版本为 2.7.13.0。
 7. **Docker 引擎不可用**：实际 `docker compose up -d` 返回 1：`failed to connect to the docker API ... open //./pipe/docker_engine: The system cannot find the file specified`。WSL 安装及重启后再启动 Docker Desktop 并重验。
 
 安装依据：[Docker Windows 官方说明](https://docs.docker.com/desktop/setup/install/windows-install/)、[Microsoft WSL 安装说明](https://learn.microsoft.com/en-us/windows/wsl/install)、[WSL 2.7.13 官方发布](https://github.com/microsoft/WSL/releases/tag/2.7.13)。WSL 已校验安装包缓存于 `%LOCALAPPDATA%/Temp/FlagForge-T0-install/wsl.2.7.13.0.x64.msi`，重试可直接使用，无须重新下载。
 
 ## 未尽事项 / 需要人工决策
 
-- 等待人工确认是否重新发起 WSL 安装；安装时须允许 Windows 管理员弹窗。
+- WSL 重试安装已成功，本次缺失软件已安装；无需再次确认安装授权。
 - Windows 已明确报告功能启用需要重启。请保存工作后人工重启，重新打开 Codex/终端刷新 PATH，并启动 Docker Desktop。未执行自动重启。
 - 重启后确认 `wsl --version`、Docker daemon；执行 `docker compose up -d` 和 `docker compose exec -T postgres pg_isready -U flagforge -d flagforge`。
 - PostgreSQL 验收通过后，更新本报告并执行指定最终提交 `chore: T0 scaffold done`。
@@ -67,7 +67,7 @@
 
 ## 验收自验清单
 
-- [ ] `docker compose up -d` 后 pg_isready 或后端连接成功——实际执行失败，Docker daemon 尚未可用，待 WSL 安装及系统重启。
+- [ ] `docker compose up -d` 后 pg_isready 或后端连接成功——Docker daemon 尚未可用；WSL 已安装，待系统重启使 Windows 可选功能生效后继续验收。
 - [x] `cd backend && go build ./...`——`go build -mod=mod ./...` 返回 0，另 `go vet ./...`、`go test ./...` 返回 0；T0 各包均 `[no test files]`。
 - [x] `cd backend && go run ./cmd/server` 后 healthz——Gin 监听 8787；HTTP 200，body 为 `{"status":"ok"}`。
 - [x] `cd frontend && npm run dev` 起在 5173，浏览器见标题——Vite 输出 `http://localhost:5173/`；HTTP 200，Codex 浏览器实际 DOM 为 heading FlagForge；`npm run build` / `npm run lint` 均返回 0。
@@ -77,3 +77,13 @@
 仅以上已实际执行并通过的项目打勾；不能将骨架构建成功视为完整 T0 验收通过。
 
 临时 healthz / Vite 验收服务及浏览器页面已关闭，释放 8787 / 5173；源码、依赖和已校验安装包保留，等待恢复验收。
+
+## WSL 重试安装结果（2026-10-09）
+
+- 用户指令：「重试并继续」。重新核对缓存 MSI 的 SHA-256 后，以 `/qn /norestart` 安装，MSI exit code 0，日志 `MainEngineThread is returning 0`。
+- `wsl --version` 返回 0：WSL 2.7.13.0 / Linux kernel 6.18.33.2-2 / Windows 10.0.26200.9457。
+- `wsl --status` 的命令退出码为 0，但正文明确提示「WSL2 无法启动，因为此计算机上未启用虚拟化」。不能仅凭退出码判定运行时已可用。
+- `HKLM/SOFTWARE/Microsoft/Windows/CurrentVersion/Component Based Servicing/RebootPending` 存在；本次功能启用后系统尚未重启。`LastBootUpTime` 仍为 2026-10-01 12:09:29。
+- 原始硬件探测显示固件虚拟化和 SLAT 已开启；Windows 可选功能已启用，但此前已明确报告 RestartNeeded。先人工重启，使新功能生效，再检查运行时；本次未修改 BIOS 或自动重启机器。
+- 已尝试启动 Docker Desktop，daemon 探测仍返回 1（docker_engine 管道不存在）。T0 的 PostgreSQL 验收尚未通过，因此不会创建 `chore: T0 scaffold done` 提交或提前启动波2。
+- 恢复入口：人工保存其他工作并重启 → 重新打开本聊天，告知「已重启，继续」→ 检查 WSL/Docker → 启动 postgres:16 并 pg_isready → 完成 T0 报告和提交 → 同时启动 T1 ∥ T2 ∥ T4a。
