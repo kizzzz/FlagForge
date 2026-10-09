@@ -43,7 +43,8 @@ let nextId = 100
 function historiesId() { return Number.parseInt(crypto.randomUUID().slice(0, 7), 16) }
 export function recordHistory(flag: Flag, action: string, summary: Record<string, unknown>) {
   const list = histories.get(flag.id) ?? []
-  list.unshift({ id: nextId++, action, operator: 'admin', summary, created_at: new Date().toISOString() })
+  // Audit entries own their complete nested snapshot, independent of live rules/flags and caller mutations.
+  list.unshift({ id: nextId++, action, operator: 'admin', summary: structuredClone(summary), created_at: new Date().toISOString() })
   histories.set(flag.id, list)
 }
 

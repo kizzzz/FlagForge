@@ -118,3 +118,7 @@ Console单次flag_key/env/user_attributes JSONobject输入，语法本地拦截�
 ### root有限数值复审指导（完整）
 
 root读到 detail/console已实现，public/mockServiceWorker.js diff为空（可能纯CRLF工作区标记），提交时不要人为改生成内容。质量审查请留意parseJSON的非有限数字：JSON.parse('1e400')得到Infinity，JSON.stringify会变null；expected editor和user_attributes本地校验应明确拒绝不可JSON序列化数字，避免静默改输入语义。可先定向红绿函数检查再修；不是要求添加框架。
+
+### root P2规格审查任务（完整）
+
+规格审查实测复现两个P2，请读完再针对性红绿修复并提交新commit：1) mocks/data.ts约55，demo rule_created summary.rule直接引用rules[1]。GET黄金flag历史id103 roll_value=true；PATCH rule100…002 {roll_value:false} 200后同旧history的roll_value/updated_at被改写。历史必须是写入时快照，建议recordHistory统一深拷贝summary（JSON-safe数据），覆盖create/update/delete/copy及嵌套expected数组，不能只shallow clone。2) utils/json.ts约16–17，实际parseObject('{\n "a": {},\n "b": }\n}')在Chrome/Node无nativeoffset且重复token时返回未提供精确行号，错误应第3行；prompt要求本地syntax错误标行。请新增小而可靠的JSON语法诊断定位助手，仅当原JSON.parse失败且原异常无可靠位置时用原始文本定位；可用JSON grammar scanner（对象key/冒号、数组/逗号、string转义/控制字、number/literal、尾随文本）诊断offset再换1起line。它不产生JSON值，实际值仍JSON.parse，保留有限数值校验、不引入框架或大依赖。不要从重复token猜位置或把无位置标为已满足。覆盖重复token、多行/嵌套、尾逗号、漏冒号/引号、EOF、字符串转义、JSON合法案例不被拒绝，源文本不修改。先用实际utils/handlers复现红，再修到绿，build/lint、report补充证据。root已独立源码核实引用，reviewer实测证据会直接再发。其它行为保持。

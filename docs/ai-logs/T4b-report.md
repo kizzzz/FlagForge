@@ -76,7 +76,7 @@ worktree：C:/Users/77230/FlagForge/.worktrees/t4b
 - 真实Go API/DB成功联调和83条完整边界回归由root统一执行；本轮只依赖MSW。未伪称事务原子性已用mock验证。
 - 网络错误/规则刷新失败/历史失败的重试分支已实现并沿用T4a共享client，不以伪造页面结果声明现场断网验收。root的真实后端错误联调可补该证据。
 - 浏览器点击「复制curl」出现成功提示，但隐藏IAB clipboard.readText为空；因此只声明按钮触发和shell命令生成/转义已验证，未声称操作系统剪贴板读回已验证。
-- JSON解析器没有offset/line且报错token在原文重复时，无法可靠推导精确行号；明确写「解析器未提供精确行号」，不编造位置。已验证Chrome唯一非法token常见情况准确标第3行、EOF报最后行附近。
+- JSON.parse 没有可靠原生位置时，现由独立 JSON grammar 诊断助手定位错误偏移并换算1起行号；重复token/EOF等原限制已在下述P2复审中修复。实际值仍只由JSON.parse产生。
 - 删除/新建/复制为浏览器mock临时数据，刷新重置。无新增用户确认或依赖决策。
 - 结束时关闭独立tab并停止自有5174 dev；不影响root的5173/8787，端口复核见最终收尾证据。
 
@@ -102,3 +102,48 @@ root指出JSON.parse合法指数数字1e400会得到Infinity，JSON.stringify随
 最终新代码再次 `npm run build` exit0、1496 modules、12.38s，`npm run lint` exit0零错误/警告，`git diff --check` exit0。临时内存函数/handler共57+14+10=81项断言通过，另有Git Bash curl参数往返验证。
 
 关闭独立IAB tab1，dev session7353已Ctrl+C终止。Get-NetTCPConnection复核5174无监听，root服务仍5173 PID11824、8787 PID33564。未终止root服务。生成mockServiceWorker的工作区标记仅LF/CRLF无内容diff，恢复到HEAD内容，未提交生成源码变更。
+
+
+## P2 规格审查修复：历史深快照与完整 JSON 行号（2026-10-10）
+
+### 实际红阶段
+
+root审查给出两个具体复现，先以当前生产源码内存esbuild转译 + 真实MSW Node setupServer重现：GET黄金Flag历史id103的rule_created.rule.roll_value为true，PATCH实际规则100…002仅roll_value=false返回200，再GET同历史变为false（updated_at也被改写），完整历史对象比较失败。实际parseObject输入：
+
+```text
+{
+ "a": {},
+ "b": }
+}
+```
+
+结果为「解析器未提供精确行号」，未包含第3行。输出 `RED historical rule snapshot stable: false ... true false`、`RED failures: 2`，exit1。
+
+### 历史修复与绿阶段
+
+mocks/data.ts:44–47的recordHistory统一使用structuredClone(summary)，在唯一写入入口保存整个summary的深层快照，避免规则对象、嵌套expected数组、changes.old/new、flag对象或copy source的后续变化回写旧历史。未仅在demo rule_created或某单一handler局部shallow clone。
+
+- 实际原GET→PATCH→GET同id历史对象完全不变；直接生产recordHistory对flag_created/flag_updated/rule_created/rule_updated/rule_deleted/flag_copied六action保存嵌套summary后，修改调用者的内层对象/数组/old/new/source/flag仍与原快照完全一致：`GREEN audit snapshot actual handler/data checks: 7`、exit0。
+- 再经实际POST/PATCH/DELETE/copy/createFlag handler：rule_created含in数组[US,CA]后改活规则数组；rule_updated后分别改旧/新活数组；rule_deleted后改删除对象数组；flag_copied后改新Flag；flag_created后改新Flag名称，旧历史全部保持写入时内容：`GREEN real CRUD/copy nested audit snapshot checks: 6`、exit0。
+
+### JSON 定位修复与绿阶段
+
+新增utils/jsonSyntaxOffset.ts:4的diagnoseJSONSyntax，只诊断原文、返回首个grammar错误的UTF-16 offset，不创建JSON值。使用显式容器stack（无递归）处理对象key/冒号/值/逗号/end、数组值/逗号/end；扫描字符串转义、4位unicode、非法控制字、数字符号/小数/指数、true/false/null及尾随文本。EOF按原文末尾定位。合法JSON返回undefined，不改变原文。
+
+utils/json.ts:15–24只在JSON.parse抛错且无可靠native offset/line时调用诊断助手，原生可靠位置优先，fallback offset换算1起行。成功值仍JSON.parse，已有hasNonFinite拒绝溢出、equals/in/批量行号规则不变；不再猜重复token出现位置。
+
+- 42个非法fixtures：重复token（含字符串内合法右括号）、多行/嵌套、尾逗号、漏冒号、未引号key/值、EOF、raw控制字、无效escape/Unicode、非法number/literal、尾随文本。每个分别检查直接诊断offset换行、实际parseJSON错误行、强制native无位置异常时的fallback行。
+- 16个合法fixtures（空对象数组、标量、数字指数、嵌套、unicode/转义/未配对surrogate）、12000层合法/少一个闭合符的深层JSON，以及finite与确定offset检查，总输出 `GREEN actual JSON diagnostic/parser checks: 147`、exit0。
+- 诊断复查发现错误文案回显用户key「position 0」会被旧宽松native regex误认；实际parseObject(`{"position 0":\n }\n}`)红结果第1行，真实错误第2行。改为匹配V8/Firefox原生diagnostic suffix，避免从用户输入片段提取位置。
+- 确定seed生成100个合法JSON（string/boolean/number/null/嵌套/控制转义/unicode），各作5次单字符插入/删除，逐一与真正JSON.parse接受/拒绝对照，加snippet回归：`GREEN grammar differential/snippet checks: 601`、exit0。
+- 最终source再验10个关键坏JSON的native/fallback双路径、嵌套finite拒绝、batch原始第3行、合法嵌套值：`GREEN final actual parser regression checks: 23`、exit0。
+
+所有验证为临时stdin/内存脚本，直接执行实际源码，不新增框架、依赖或持久测试文件。上述未把旧「无法定位」分支声称为满足规格；它已由grammar fallback替代正常语法错误诊断。
+
+### 最终工程与环境证据
+
+- 最终 `npm run build` exit0，零TS错误，1497 modules，built in10.36s；原有chunk大小提示仍存在（约1.171MB/gzip371KB）。
+- 最终 `npm run lint` exit0，零errors/零warnings；`git diff --check` exit0。
+- 本次尝试新独立浏览器，cua.createBrowserTab返回「Browser is not available: iab」，cua.getState返回apps=[]/browsers=[]，未重复尝试或伪称现场浏览器结果。此次新增修复证据为实际函数/handler检查；已有7张T4b截图保留。
+- 本次仅临时5174 dev session41817已Ctrl+C结束，端口5174无监听；root 5173 PID11824 / 8787 PID33564仍在运行。
+- 新增诊断助手约85行，无组件长度、路由布局、client、其他行为改动。

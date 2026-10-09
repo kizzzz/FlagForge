@@ -1,4 +1,5 @@
 import type { Rule } from '../api/client'
+import { diagnoseJSONSyntax } from './jsonSyntaxOffset'
 export const isObject = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === 'object' && !Array.isArray(v)
 export const isScalar = (v: unknown) => typeof v === 'number' ? Number.isFinite(v) : typeof v === 'string' || typeof v === 'boolean'
 export function hasNonFinite(value: unknown): boolean {
@@ -10,11 +11,17 @@ export function parseJSON(text: string): unknown {
   let value: unknown
   try { value = JSON.parse(text) } catch (error) {
     const message = error instanceof Error ? error.message : 'JSON 语法错误'
-    let offset = message.match(/position\s+(\d+)/)?.[1]
-    const token = message.match(/^Unexpected token '([^']+)'/)?.[1]
-    if (offset === undefined && token && text.indexOf(token) >= 0 && text.indexOf(token) === text.lastIndexOf(token)) offset = String(text.indexOf(token))
-    const line = offset !== undefined ? text.slice(0, Number(offset)).split('\n').length : message.match(/line\s+(\d+)/)?.[1]
-    throw new Error(`JSON 语法错误${line ? `（第 ${line} 行）` : /end|unterminated/i.test(message) ? `（第 ${text.split('\n').length} 行附近）` : '（解析器未提供精确行号）'}：${message}`)
+    // Match native diagnostic suffixes, never words such as "position 0" echoed from user input.
+    const nativePosition = message.match(/\bJSON at position\s+(\d+)(?:\s+\(line\s+\d+\s+column\s+\d+\))?$/i)?.[1]
+    const nativeLine = message.match(/\bat line\s+(\d+)\s+column\s+\d+ of the JSON data$/i)?.[1]
+    const position = nativePosition === undefined ? undefined : Number(nativePosition)
+    const reliablePosition = position !== undefined && position >= 0 && position <= text.length
+    let line = reliablePosition ? text.slice(0, position).split('\n').length : nativeLine === undefined ? undefined : Number(nativeLine)
+    if (line === undefined || line < 1 || line > text.split('\n').length) {
+      const offset = diagnoseJSONSyntax(text)
+      line = offset === undefined ? undefined : text.slice(0, offset).split('\n').length
+    }
+    throw new Error(`JSON 语法错误${line === undefined ? '（解析器未提供精确行号）' : `（第 ${line} 行）`}：${message}`)
   }
   if (hasNonFinite(value)) throw new Error('数字超出有限 JSON 数值范围，请使用可序列化的有限数字；不会将溢出数字静默改为 null')
   return value
