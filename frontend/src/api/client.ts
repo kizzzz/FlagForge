@@ -59,14 +59,18 @@ async function request<T>(path: string, init: RequestInit = {}, options: Request
       headers: { 'Content-Type': 'application/json', ...init.headers },
       signal: options.signal,
     })
-    const payload = response.status === 204 ? undefined : await response.json().catch(() => undefined)
+    const payload = response.status === 204 ? undefined : await response.json().catch(error => {
+      if (error instanceof DOMException && error.name === 'AbortError') throw error
+      return undefined
+    })
+    if (options.signal?.aborted) throw new DOMException('请求已取消', 'AbortError')
     if (!response.ok) {
       const error = payload?.error
       throw new ApiError(error?.code ?? 'INTERNAL_ERROR', error?.message ?? `请求失败（HTTP ${response.status}），请重试`, error?.details ?? {}, response.status)
     }
     return payload as T
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    if (options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
     const apiError = error instanceof ApiError ? error : new ApiError('NETWORK_ERROR', '无法连接服务，请检查网络后重试')
     if (!options.inlineErrors?.includes(apiError.code)) reportError(apiError)
     throw apiError

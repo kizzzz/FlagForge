@@ -30,6 +30,12 @@ export default function FlagListPage() {
     setFailed(false)
     flagApi.list(query, { signal: controller.signal }).then(result => {
       if (controller.signal.aborted) return
+      const lastPage = Math.max(1, Math.ceil(result.total / result.page_size))
+      const page = Math.min(query.page ?? result.page, lastPage)
+      if (page !== query.page || result.page_size !== query.page_size) {
+        setQuery(previous => ({ ...previous, page, page_size: result.page_size }))
+        return
+      }
       setData({ ...result, items: result.items.map(row => ({ ...row, enabled: pendingRef.current[row.id] ?? row.enabled })) })
     }).catch(() => { if (!controller.signal.aborted) setFailed(true) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })

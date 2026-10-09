@@ -117,3 +117,37 @@ Vite 生产包约 1.07 MB（gzip 340.7 KB）存在 >500 KB chunk 提示，不是
 - 内存辅助断言解析器 line/column 转 offset、完全缺失位置时诚实兜底（2项）；未向生产源码导出测试函数。
 
 重新 npm run build：exit0、零TS错误、1475 modules、built in 10.02s；npm run lint：exit0、零错误/警告；git diff --check：exit0。原有Vite chunk大小提示仍存在。仅修改 frontend/src/mocks/handlers.ts 和本报告，组件、fetch、UI与依赖均未变化；未重启前端/后端服务。
+
+## 代码质量复审修复：分页边界与取消响应（2026-10-10）
+
+### 分页缩页后的真实请求恢复
+
+复审 P2 场景：筛选已停用、每页10条、第二页，初始 total12/items2。将这两条启用后 total10，原代码继续请求第二页并把空 items 写给 Table；AntD 显示第一页无法恢复实际数据。
+
+红阶段执行实际 FlagListPage.tsx 的内存 esbuild 转译代码，使用临时 useState/useRef/useEffect 执行器处理组件状态、依赖与 cleanup；UI组件仅保留 JSX props，无 DOM，不是现场浏览器或完整 React reconciler 验证。请求使用实际 api/client.ts、原生fetch和实际 MSW setupServer handlers。通过组件 Select/pagination/Switch 的实际回调操作，捕获真实请求与 Table.dataSource。红输出：BEFORE page2/size10/enabled=false/total12/rows2；AFTER page2/size10/enabled=false/total10/rows0；末次请求仍page2，页码状态断言失败、exit1。
+
+修复列表响应后按 result.total / result.page_size 计算最后有效页，以此限制 query.page；仅页码或服务端实际page_size需要调整时才更新query并重新请求，保留其余筛选。不仅改变分页显示，也不无条件重置第一页。
+
+绿阶段相同实际组件/handler脚本共8个定向断言通过、exit0：第一条启用后 total11，第二页仍有效，保留page2并显示1行；第二条启用后 total10，query改为page1/size10/enabled=false，实际末次请求 /api/v1/flags?page=1&page_size=10&enabled=false，Table.dataSource恢复10行。新增分页回归场景未现场浏览器验收：直接 cua.createBrowserTab('iab', ...) 返回 Browser is not available: iab，随后 cua.getState 返回 apps=[]/browsers=[]；调度者已知并将合并后再次尝试真实浏览器。
+
+### 取消 JSON 响应体读取不再提示错误
+
+红阶段：实际 client.ts 内存转译，临时本地HTTP服务先返回500头及部分JSON，原生fetch收到头并开始读取响应体后取消 AbortController。实际输出 aborted:true、error:ApiError、reporter:1，取消不toast断言失败、exit1。根因是 response.json().catch吞掉AbortError，后续制造HTTP INTERNAL_ERROR。
+
+修复 JSON兜底保留AbortError；响应体读取后检查signal，已取消则抛AbortError；外层catch在signal已取消时不触发全局reporter。原来非JSON HTTP兜底、普通网络错误与409内联路径继续保持。
+
+绿阶段相同实际client+原生fetch+临时本地HTTP流式服务共5项通过、exit0：
+
+- 读取500响应体时取消：aborted:true、error:AbortError、reporter0。
+- 普通500 JSON：INTERNAL_ERROR、reporter1。
+- 非JSON500：HTTP500兜底文案、reporter1。
+- 409 DUPLICATE_FLAG_KEY指定inlineErrors：ApiError保留、reporter0。
+- 连接被关闭：NETWORK_ERROR、reporter1。
+
+### 回归与工程检查
+
+- 已有 JSON位置/合法非对象/正常写入/409/不可变字段的37项实际handlers验证再次通过、exit0，未更改该修复。
+- npm run build：exit0、零TS错误，1475 modules，built in11.65s；npm run lint：exit0、零错误/警告。原有Vite chunk大小提示仍存在。
+- git diff --check：exit0。FlagListPage现88行，其余组件行数不变，均≤300。
+- 全部脚本为内存或stdin临时验证，未新增依赖、测试框架或持久测试文件；仅修改client.ts、FlagListPage与本报告，不扩展T4b。
+- 临时HTTP流式服务和MSW Node进程已退出；dev session58840已Ctrl+C结束，5173/5174无监听，未创建浏览器tab。
