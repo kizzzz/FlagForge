@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: flagforge
+      POSTGRES_PASSWORD: flagforge
+      POSTGRES_DB: flagforge
+    ports: ["55432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

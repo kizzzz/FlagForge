@@ -1,0 +1,12 @@
+﻿[
+    {
+        "Feature":  "VirtualMachinePlatform",
+        "State":  "Enabled",
+        "RestartNeeded":  false
+    },
+    {
+        "Feature":  "Microsoft-Windows-Subsystem-Linux",
+        "State":  "Enabled",
+        "RestartNeeded":  true
+    }
+]
