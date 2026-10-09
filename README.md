@@ -1,17 +1,25 @@
 # FlagForge
 
-Feature Flag 与灰度规则平台。已完成 T0、T1、T2、T4a：工程骨架、SQL 迁移与幂等演示数据、纯函数评估引擎，以及 Flag 列表和新建/编辑页面。后端当前提供 `GET /healthz`；前端开发模式默认使用 MSW。业务 API 与详情/控制台页面由后续 T3a/T3b、T4b 接入，计划见 `docs/plan/`。
+## 1. 简介与完成范围
 
-## 环境
+面向小团队的 Feature Flag 与灰度规则平台：按环境管理开关，通过评估轨迹解释每个用户为什么命中规则或拿到默认值。
 
-- Go ≥1.22、Node ≥18、npm、Docker Desktop（含 Compose，Linux 容器模式）。
-- Windows 使用 Git Bash；安装工具后重新打开终端以刷新 PATH。
-- 端口：后端 8787、前端 5173、PostgreSQL 55432。
-- Docker 使用 WSL 2 时，首次启用 Windows 虚拟机平台后可能需要重启电脑。
+| 题面必做 | 状态 |
+| --- | --- |
+| React/TypeScript 前端、Go API、PostgreSQL 持久化 | 已实现，默认连接真实 Go 服务 |
+| Flag 列表、搜索/筛选、分页、新建、编辑、详情、启停 | 已实现；同环境 key 唯一、跨环境可复用 |
+| 规则增删改、equals/in、确定性优先级 | 已实现；数字越小越优先，重复优先级返回 409 |
+| 在线评估、结果/命中规则/默认值/停用与错误反馈 | 已实现；JSON 校验、加载态、空态、成功/失败反馈 |
+| 操作历史及原子一致性 | 已实现；业务与历史同一 PostgreSQL 事务 |
+| SQL 迁移、幂等 seed、核心自动化测试、AI 记录 | 已实现；逐项验证见 docs/ai-logs/T5-acceptance.md |
 
-## 快速开始
+四个亮点均已实现：逐规则 **Trace**、最多 100 组的**批量模拟分布**、结构化历史 **Diff**、**环境复制**（复制后停用）。未实现的可选项与验证限制见第 8 节。
 
-在项目根目录的 Git Bash 执行：
+## 2. 快速开始
+
+依赖：Go ≥1.22、Node ≥18 + npm、Git Bash（Windows）或 Bash、curl、Docker Desktop/Engine + Compose（Linux 容器）。使用 PostgreSQL 16，可改用已有本地 PostgreSQL。GNU Make 可选。默认端口：前端 5173、Go 8787、PG 55432。Windows 安装后重新打开终端刷新 PATH；Docker Desktop 使用 WSL2 时首次启用虚拟机平台可能需要重启。
+
+在仓库根目录 Git Bash/Bash 安装迁移工具与依赖：
 
 ```bash
 cd backend
@@ -20,45 +28,182 @@ go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17
 cd ../frontend
 npm ci
 cd ..
-bash scripts/dev.sh
 ```
 
-安装了 GNU Make 时，最后一步也可运行 `make dev`。脚本会启动 PostgreSQL、等待就绪、执行迁移和幂等 seed、后台启动后端，再启动前端。前端访问 [localhost:5173](http://localhost:5173)，健康检查访问 [localhost:8787/healthz](http://localhost:8787/healthz)。停止 dev 使用 Ctrl+C；数据库通过 `bash scripts/down.sh` 停止。
+`migrate` 需位于 PATH 或 `$(go env GOPATH)/bin`（脚本自动查找，Windows 包括 `.exe`）。前置安装后，一条主命令启动全套：
 
-开发开关为 `frontend/.env.development` 中的 `VITE_USE_MSW=true`；生产构建默认关闭。Mock 使用内存演示数据，刷新会重置；`billing-portal` 的首次启停故意失败一次，用于验证回滚，重试会成功。关闭 mock 后接真实业务 API 的成功联调属于后续任务。
+```bash
+bash scripts/dev.sh
+# 安装 GNU Make 时等价：make dev
+```
 
-默认 `DATABASE_URL` 为：
+脚本依次 Compose up → 等待 PG → migrate up → seed → build/run Go → Vite。打开 [localhost:5173](http://localhost:5173)，健康检查 [localhost:8787/healthz](http://localhost:8787/healthz)。Ctrl+C 停止前后端；`bash scripts/down.sh` 停止 PG 并保留卷。修改通过 Go 写入 PG，刷新或服务重启后仍保留。
+
+分步骤备选（根目录执行，Go/Vite 分别占用独立终端）：
+
+```bash
+docker compose up -d
+docker compose exec -T postgres pg_isready -U flagforge -d flagforge
+bash scripts/migrate-up.sh
+bash scripts/seed.sh
+(cd backend && go run ./cmd/server)
+# 另一个终端：
+(cd frontend && npm run dev)
+# 再开一个终端验收：
+bash scripts/smoke.sh
+```
+
+PG 未就绪时重复 pg_isready，成功后再迁移。默认 DATABASE_URL：
 
 ```text
 postgres://flagforge:flagforge@localhost:55432/flagforge?sslmode=disable
 ```
 
-通过环境变量覆盖；迁移、seed 和数据层测试使用此连接。服务端业务 API 的数据库接入属于后续任务。
+本地 PG 备选：使用有建库权限的管理员通过 psql 创建专用角色和库，然后跳过 Compose，只执行 migrate/seed/Go/Vite。`scripts/dev.sh` 始终启动 Compose，是 Docker 主路径。
 
-## 常用命令
-
-| Make | Git Bash 等价命令 | 作用 |
-| --- | --- | --- |
-| `make dev` | `bash scripts/dev.sh` | 启动开发环境 |
-| `make migrate-up` | `bash scripts/migrate-up.sh` | 应用 SQL 迁移 |
-| `make migrate-down` | `bash scripts/migrate-down.sh` | 回退最近一次迁移 |
-| `make seed` | `bash scripts/seed.sh` | 幂等写入演示数据 |
-| `make test` | `bash scripts/test.sh` | `go test ./...` |
-| `make smoke` | `bash scripts/smoke.sh` | T0 占位，T5 补全冒烟序列 |
-| `make down` | `bash scripts/down.sh` | 停止 Compose，不删除数据卷 |
-
-独立启动：`docker compose up -d`、`cd backend && go run ./cmd/server`、`cd frontend && npm run dev`，分别在独立终端执行。前端 `/api` 经 Vite 转发到 `http://localhost:8787`；使用原生 fetch。
-
-后端普通检查使用 `bash scripts/test.sh`。真实数据库集成测试在应用迁移后执行：
-
-```bash
-cd backend
-DATABASE_URL='postgres://flagforge:flagforge@localhost:55432/flagforge?sslmode=disable' go test -tags=integration ./... -count=1
-go test ./internal/eval/ -cover
+```sql
+CREATE ROLE flagforge LOGIN PASSWORD 'flagforge';
+CREATE DATABASE flagforge OWNER flagforge;
 ```
 
-前端使用 `npm run build`、`npm run lint` 和浏览器验收；按设计不添加前端测试框架。当前波次结果及验证限制见 `docs/ai-logs/wave2-report.md`。
+```bash
+export DATABASE_URL='postgres://flagforge:flagforge@localhost:5432/flagforge?sslmode=disable'
+bash scripts/migrate-up.sh
+bash scripts/seed.sh
+# 保留 DATABASE_URL，在本终端起 Go；另一个终端起 Vite
+(cd backend && go run ./cmd/server)
+```
 
-中国大陆拉包失败时使用 `GOPROXY=https://goproxy.cn,direct` 和 `npm ci --registry=https://registry.npmmirror.com`，仍失败再使用 `http://127.0.0.1:10808` 代理。
+迁移创建 pgcrypto，数据库角色需有相应权限；受限实例可由管理员先安装该扩展。Go 可设 SERVER_ADDR，但 Vite `/api` 代理固定指向 `http://localhost:8787`，演示使用默认端口。大陆拉包失败可用 GOPROXY=https://goproxy.cn,direct 或 `npm ci --registry=https://registry.npmmirror.com`。
 
-设计与验收要求见 `docs/plan/`，执行记录见 `docs/ai-logs/`。
+`frontend/.env.development` / `.env.production` 默认 VITE_USE_MSW=false。显式开发 mock：`(cd frontend && VITE_USE_MSW=true npm run dev)`。MSW 数据在内存中，刷新重置，不能证明 Go/PG 持久化。从旧 mock 切换时关闭旧页面并在新浏览器会话打开真实模式。
+
+## 3. 数据模型
+
+迁移在 backend/migrations/0001_init.up.sql / .down.sql，禁用 GORM AutoMigrate。
+
+| 表 | 内容与关系 |
+| --- | --- |
+| flags | UUID、name、key、environment、enabled、default_value、description、created_at/updated_at |
+| rules | UUID、flag_id 外键、attribute、operator、JSONB expected_value、roll_value、priority、时间戳 |
+| histories | 自增 id、flag_id 外键、8 种 action、operator、JSONB summary、created_at；按 Flag/时间索引 |
+
+`uq_flags_env_key UNIQUE(environment,key)` 拒绝同环境重复 key，允许跨环境复用。`uq_rules_flag_priority UNIQUE(flag_id,priority)` 拒绝同 Flag 重复优先级；DB 最终兜底并映射为 409。其他 CHECK 限定三环境、key 格式、名称/属性长度、equals/in、正整数 priority 与 history action。时间使用 TIMESTAMPTZ，API 输出 UTC，前端本地化显示。
+
+Seed 首次初始化 4 Flag / 7 Rule / 4 flag_created 历史：结账 production/development、搜索 staging、停用 billing development。重跑不会覆盖已有 Flag、补回人工删掉的规则或重复写历史。
+
+## 4. 规则评估语义
+
+- **D1：数字越小越优先**。按 priority 升序，第一条命中立即返回 roll_value（可为 false）；后续规则不评估。全 miss 返回 default_value。
+- **D2：重复优先级拒绝**。创建/编辑均 409 DUPLICATE_PRIORITY，UI 定位 priority 字段，避免隐藏二级排序改变结果。priority 为 1–2147483647 整数，可留空号。
+- **D3：严格 JSON 类型**。equals 接受字符串/数字/布尔标量；in 接受非空标量数组，可混合类型，只比较同类型元素。`"1" ≠ 1`、`true ≠ "true"`；数字双侧归一 float64。期望值拒绝 null、对象、嵌套数组。
+- **D4：停用先短路**。无论 default/规则为何，disabled 恒 false，reason=disabled，Trace 仅一条停用记录；停用时仍可维护规则。
+- **D5：属性缺失跳过**。user_attributes 必须是 object，可含嵌套值；只读顶层键，不解析 a.b 路径。缺失记录 attribute_missing 后继续；对象/数组不能匹配标量。
+
+Trace cause：matched、attribute_missing、type_mismatch、value_not_equal、value_not_in_list、short_circuited_by_disabled_flag。结果 reason：rule_hit/default/disabled。三个 seed 示例：
+
+| flag_key / environment / user_attributes | 结果与解释 |
+| --- | --- |
+| checkout-redesign-2026 / production / `{"country":"CN","plan":"pro"}` | true，#2 命中；Trace 仅 #1 白名单 miss、#2 plan hit，#3 不评估 |
+| checkout-redesign-2026 / production / `{"country":"CN","plan":"free","user_id":"9001"}` | false/default；#3 字符串9001不等于数字9001，三条全 miss |
+| billing-portal / development / `{"plan":"pro"}` | false/disabled；default=true 且规则会 hit，仍仅一条短路 Trace |
+
+development 同 key 结账 Flag 默认 true，但 country=CN 命中 #1 返回 false；评估必须同时指定 key/environment。
+
+## 5. API 摘要
+
+GET /healthz；业务前缀 /api/v1。单资源成功直接返回资源 JSON 对象，分页 `{"items":[],"page":1,"page_size":20,"total":0}`，错误 `{"error":{"code":"...","message":"...","details":...}}`。
+
+| 方法与路径（省略前缀） | 用途 |
+| --- | --- |
+| POST /flags；GET /flags | 新建；列表，environment/enabled/q/page/page_size，组合 AND |
+| GET /flags/:id；PATCH /flags/:id | 详情与有序 rules；编辑 name/description/default_value，key/environment 不可变 |
+| PATCH /flags/:id/status | `{"enabled":false}` 启停 |
+| POST /flags/:id/rules | 新建规则 |
+| PATCH /flags/:id/rules/:rid；DELETE 同路径 | 部分更新；删除规则（204） |
+| GET /flags/:id/history | created_at DESC/id DESC 分页，8 action 与 summary |
+| POST /evaluate | flag_key + environment + user_attributes 单次评估 |
+| POST /evaluate/batch | flag_key + environment + user_attributes_list（1–100 object） |
+| POST /flags/:id/copy | `{"target_environment":"staging"}`；新 Flag 停用，保持 priority，源不变 |
+
+```bash
+curl -i -X POST http://localhost:8787/api/v1/flags \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Demo rollout","key":"demo-rollout","environment":"staging","enabled":true,"default_value":false}'
+curl -sS -X POST http://localhost:8787/api/v1/evaluate \
+  -H 'Content-Type: application/json' \
+  -d '{"flag_key":"checkout-redesign-2026","environment":"production","user_attributes":{"country":"CN","plan":"pro"}}'
+```
+
+第二条返回 value=true、reason.type=rule_hit、reason.priority=2，Trace 两行。常见错误：非法 JSON 400 INVALID_JSON（位置）、非法输入400、资源不存在404 FLAG_NOT_FOUND/RULE_NOT_FOUND、重复 key/priority409。batch 任意非法组导致整体400，details.index 为0起；UI 转换为原 textarea 的1起行号，忽略空行，注释行视为非法 JSON。
+
+## 6. 测试与验收
+
+```bash
+(cd backend && go test ./... -count=1)
+(cd backend && go vet ./... && go build ./...)
+(cd backend && go test ./internal/eval -count=1 -cover)
+# 先启动 DB 并 migrate；显式设置连接，防止 integration 因未配置 Skip
+export DATABASE_URL='postgres://flagforge:flagforge@localhost:55432/flagforge?sslmode=disable'
+(cd backend && go test -tags=integration ./... -count=1 -v)
+(cd frontend && npm run build && npm run lint)
+# 已起 Go 后：
+bash scripts/smoke.sh
+# 自定义地址：BASE_URL=http://localhost:58025 bash scripts/smoke.sh
+```
+
+引擎单测覆盖全部15组语义与防御行为，statement coverage100%。真实 PG integration 覆盖约束、零值更新、分页、幂等 seed、全部 API、batch 查询次数/计数、精确历史diff、history/copy 失败事务回滚。API 用例随机隔离 schema 并清理；配置连接但连接失败会报错。
+
+Smoke 使用 Bash/curl/已有 Node≥18 JSON断言，不需要 jq/Python。序列 health → 创建 → 同环境重复409 → 加规则 → hit/default → disable → false+disabled → history≥3 → batch.summary.total；失败非零。每次使用独立 key，**保留新建测试 Flag、规则和历史**，不删除已有数据。
+
+前端使用真实浏览器与实际解析器/handler 定向检查，未新增自动化框架。83条清单、干净重放、UI证据见 docs/ai-logs/T5-acceptance.md，命令汇总见 T5-report.md。`bash scripts/migrate-down.sh` 回退一版，随后 migrate-up；回退删除三张业务表/数据，保留 schema_migrations 和共享扩展。
+
+## 7. 设计取舍
+
+| 决策 | 原因 |
+| --- | --- |
+| D2 拒绝重复 priority | 单一可解释顺序，DB 处理并发撞号，UI 定位字段 |
+| D3 严格类型 | 避免隐式转换误命中，Trace 解释失败 |
+| D4 停用短路 | 总开关优先，false 可预测 |
+| D6 key/environment 不可变 | 保护调用方锚点；显式400 IMMUTABLE_FIELD，另建或复制 |
+| D7 不做 Flag 删除 | 题面未要求，避免扩展历史保留策略；提供停用/规则删除 |
+| D8 service 唯一事务边界 | 业务与历史同提交/回滚，真实 PG CHECK 失败验证 |
+| D9 last-write-wins | 小团队低频编辑优先核心；无版本号/乐观锁 |
+| D10 UTC | 统一写入/API口径，本地化只在显示层 |
+
+纯函数引擎便于独立测试，SQL 迁移为 schema 事实源；MSW 契约解耦开发，最终演示走 Go/PG。顶层属性避免路径语言；batch 一次加载配置复用引擎，copy 复用事务/唯一约束。
+
+## 8. 已知限制
+
+- 无登录/权限/真实用户审计身份，operator 固定 admin；默认密码为本地开发示例。
+- 并发 last-write-wins，无乐观锁。仅布尔 Flag、equals/in、顶层属性；未做百分比灰度、嵌套路径、Flag 删除、SDK、部署流水线等可选扩展。
+- JSON数字 float64，超安全整数可能丢精度；大整数用户ID应使用字符串，并配置字符串规则。前端拒绝 Infinity 溢出。
+- 无前端自动化框架；build 存在 >500KB chunk提示，尚未分包优化。
+- 复制 curl 的生成/转义/点击反馈已有验证；操作系统剪贴板读回待最终现场核实，成功提示不能替代读回证据。
+- T5最终真实 UI 与新checkout/PG重建证据正在收口；尚无证据的条目在验收报告明确标注，不能据 mock 推断完成。
+- 48小时正式提交时限无法仅由Git证明；仓库交付不表示已向题目接收方正式提交。早期失败audit保留历史快照，闭环见T5报告。
+
+## 9. AI 使用说明
+
+AI 辅助设计、编码、检查与文档。session-main.md 保留原设计过程摘要；后续补齐由 Codex 主线调度 executor，每任务独立规格/质量审查，失败先复现再修复，复验后合并。归档是提示词、真实执行/审查摘要和命令证据，**不是完整逐字聊天导出**，不据摘要推断所有参与模型身份。
+
+流程：主线需求/架构 → 8份任务提示词 → 依赖波次与并行 executor → 独立两阶段审查 → 合并 → 真实集成/归档。三层：完整任务提示词、执行报告、主线设计/调度过程。
+
+```text
+docs/ai-logs/
+├── session-main.md                 # 原设计过程摘要
+├── session-completion.md           # Codex后续补齐调度/集成
+├── T0-prompt.md / T0-report.md
+├── T1-prompt.md / T1-report.md
+├── T2-prompt.md / T2-report.md
+├── T3a-prompt.md / T3a-report.md
+├── T3b-prompt.md / T3b-report.md
+├── T4a-prompt.md / T4a-report.md
+├── T4b-prompt.md / T4b-report.md
+├── T5-prompt.md / T5-report.md
+├── T5-acceptance.md                 # 全10组、实际83项
+├── wave2-report.md                  # 早期波次汇总
+└── requirements-validation-2026-10-10.md # 早期失败audit历史
+```
+
+docs/plan/ 保存统一设计、边界表和任务规范；frontend/evidence/ 保存报告注明来源的截图。历史报告中的待实现状态只反映当时基线，最终状态以T5为准。
