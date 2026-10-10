@@ -218,7 +218,12 @@ test('MSW mirrors DELETE UUID validation, 204 cascade, 404 and environment isola
   const server = setupServer(...handlers)
   server.listen({ onUnhandledRequest: 'error' })
   try {
-    assert.equal((await fetch('http://localhost/api/v1/flags/invalid', { method: 'DELETE' })).status, 400)
+    const invalid = await fetch('http://localhost/api/v1/flags/invalid', { method: 'DELETE' })
+    assert.equal(invalid.status, 400)
+    const invalidBody = await invalid.json()
+    assert.equal(invalidBody.error.code, 'VALIDATION_ERROR')
+    assert.equal(invalidBody.error.message, 'request validation failed')
+    assert.deepEqual(invalidBody.error.details, [{ field: 'id', reason: 'must be a UUID in xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx format' }])
     assert.equal((await fetch(`http://localhost/api/v1/flags/${id}`, { method: 'DELETE' })).status, 204)
     assert.ok(!flags.some(item => item.id === id)); assert.ok(!rules.some(item => item.flag_id === id)); assert.ok(!histories.has(id))
     assert.ok(flags.some(item => item.id === siblingId))

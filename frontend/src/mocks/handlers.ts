@@ -109,7 +109,7 @@ export const handlers = [
   http.delete(`${base}/:id`, async ({ params }) => {
     await delay(450)
     const id = String(params.id)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return error(400, 'INVALID_ID', 'Flag ID 必须为合法 UUID')
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return error(400, 'VALIDATION_ERROR', 'request validation failed', [{ field: 'id', reason: 'must be a UUID in xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx format' }])
     const index = flags.findIndex(flag => flag.id === id)
     if (index < 0) return notFound()
     flags.splice(index, 1)
