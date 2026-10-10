@@ -57,3 +57,5 @@ frontend_quality_review 发现 `/console/` 尾部斜杠会匹配路由却不显�
 ## 交付顺序
 
 按用户“先更新本地，再更新 github”执行：本地代码快进、依赖安装、服务重启、自动化与浏览器验证完成后，才同步 GitHub。使用 Git 数据 API 保留原始对象 SHA，以 fast-forward 更新 main；拒绝覆盖独立的远程变更，保留既有 v1.0.0 标签。
+
+最终集成审查 final_fixes_review 检查至 b966f72，通过，无剩余实质问题。Git worktree remove 已解除隔离工作区注册，但 Windows 删除目录返回 Invalid argument；随后带绝对路径检查的 PowerShell 残留目录清理被自动审批策略阻止。停止清理并保留残留目录，不影响主检出或运行；未尝试绕过拒绝。
