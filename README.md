@@ -7,7 +7,7 @@
 | 题面必做 | 状态 |
 | --- | --- |
 | React/TypeScript 前端、Go API、PostgreSQL 持久化 | 已实现，默认连接真实 Go 服务 |
-| Flag 列表、搜索/筛选、分页、新建、编辑、详情、启停 | 已实现；同环境 key 唯一、跨环境可复用 |
+| Flag 列表、搜索/筛选、分页、新建、编辑、详情、启停、删除 | 已实现；同环境 key 唯一、跨环境可复用；删除需确认 |
 | 规则增删改、equals/in、确定性优先级 | 已实现；数字越小越优先，重复优先级返回 409 |
 | 在线评估、结果/命中规则/默认值/停用与错误反馈 | 已实现；JSON 校验、加载态、空态、成功/失败反馈 |
 | 操作历史及原子一致性 | 已实现；业务与历史同一 PostgreSQL 事务 |
@@ -110,6 +110,10 @@ Trace cause：matched、attribute_missing、type_mismatch、value_not_equal、va
 
 development 同 key 结账 Flag 默认 true，但 country=CN 命中 #1 返回 false；评估必须同时指定 key/environment。
 
+控制台在本次页面会话中保留状态：切到 Flag 列表或详情再返回，单次/批量草稿、已提交结果、错误和选中标签仍在，不会自动重新评估；刷新页面或关闭标签后重置。结果中的 Key、环境对应原请求；单次显示 API 评估时间，批量显示客户端模拟完成时间，编辑草稿不会改写已提交结果的标签。
+
+单次和批量的 Flag Key 都可自由输入，也可从当前环境的已有 Flag 中选择（包含停用的 Flag，展示名称和状态）。候选加载完整分页列表；切换环境或重新聚焦输入框时刷新。环境变化不会改写输入的 Key；候选加载失败时仍可手动输入并评估，重新聚焦可重试。
+
 ## 5. API 摘要
 
 GET /healthz；业务前缀 /api/v1。单资源成功直接返回资源 JSON 对象，分页 `{"items":[],"page":1,"page_size":20,"total":0}`，错误 `{"error":{"code":"...","message":"...","details":...}}`。
@@ -118,6 +122,7 @@ GET /healthz；业务前缀 /api/v1。单资源成功直接返回资源 JSON 对
 | --- | --- |
 | POST /flags；GET /flags | 新建；列表，environment/enabled/q/page/page_size，组合 AND |
 | GET /flags/:id；PATCH /flags/:id | 详情与有序 rules；编辑 name/description/default_value，key/environment 不可变 |
+| DELETE /flags/:id | 永久删除 Flag 及其规则/历史，成功返回空 204；非法 UUID 400、不存在或重复删除 404 FLAG_NOT_FOUND |
 | PATCH /flags/:id/status | `{"enabled":false}` 启停 |
 | POST /flags/:id/rules | 新建规则 |
 | PATCH /flags/:id/rules/:rid；DELETE 同路径 | 部分更新；删除规则（204） |
@@ -146,7 +151,7 @@ curl -sS -X POST http://localhost:8787/api/v1/evaluate \
 # 先启动 DB 并 migrate；显式设置连接，防止 integration 因未配置 Skip
 export DATABASE_URL='postgres://flagforge:flagforge@localhost:55432/flagforge?sslmode=disable'
 (cd backend && go test -tags=integration ./... -count=1 -v)
-(cd frontend && npm run build && npm run lint)
+(cd frontend && npm test && npm run build && npm run lint)
 # 已起 Go 后：
 bash scripts/smoke.sh
 # 自定义地址：BASE_URL=http://localhost:58025 bash scripts/smoke.sh
@@ -156,7 +161,7 @@ bash scripts/smoke.sh
 
 Smoke 使用 Bash/curl/已有 Node≥18 JSON断言，不需要 jq/Python。序列 health → 创建 → 同环境重复409 → 加规则 → hit/default → disable → false+disabled → history≥3 → batch.summary.total；失败非零。每次使用独立 key，**保留新建测试 Flag、规则和历史**，不删除已有数据。
 
-前端使用真实浏览器与实际解析器/handler 定向检查，未新增自动化框架。83条清单、干净重放、UI证据见 docs/ai-logs/T5-acceptance.md，命令汇总见 T5-report.md。`bash scripts/migrate-down.sh` 回退一版，随后 migrate-up；回退删除三张业务表/数据，保留 schema_migrations 和共享扩展。
+前端新增 Node 内置测试与 jsdom，覆盖真实组件的导航状态、Key 候选及删除流程，使用网络替身隔离 HTTP；真实浏览器另外验证 Go/PG 联动。原始83条清单、干净重放、UI证据见 docs/ai-logs/T5-acceptance.md，命令汇总见 T5-report.md；本次三项修复证据见 docs/ai-logs/console-fixes-2026-10-10.md。`bash scripts/migrate-down.sh` 回退一版，随后 migrate-up；回退删除三张业务表/数据，保留 schema_migrations 和共享扩展。
 
 ## 7. 设计取舍
 
@@ -166,19 +171,19 @@ Smoke 使用 Bash/curl/已有 Node≥18 JSON断言，不需要 jq/Python。序�
 | D3 严格类型 | 避免隐式转换误命中，Trace 解释失败 |
 | D4 停用短路 | 总开关优先，false 可预测 |
 | D6 key/environment 不可变 | 保护调用方锚点；显式400 IMMUTABLE_FIELD，另建或复制 |
-| D7 不做 Flag 删除 | 题面未要求，避免扩展历史保留策略；提供停用/规则删除 |
+| D7 Flag 永久删除 | 用户后续要求新增；确认后在事务中删除 Flag，外键级联删除规则与历史，无回收站/恢复或删除后历史查询 |
 | D8 service 唯一事务边界 | 业务与历史同提交/回滚，真实 PG CHECK 失败验证 |
 | D9 last-write-wins | 小团队低频编辑优先核心；无版本号/乐观锁 |
 | D10 UTC | 统一写入/API口径，本地化只在显示层 |
 
-纯函数引擎便于独立测试，SQL 迁移为 schema 事实源；MSW 契约解耦开发，最终演示走 Go/PG。顶层属性避免路径语言；batch 一次加载配置复用引擎，copy 复用事务/唯一约束。
+纯函数引擎便于独立测试，SQL 迁移为 schema 事实源；MSW 契约解耦开发，最终演示走 Go/PG。顶层属性避免路径语言；batch 一次加载配置复用引擎，copy 复用事务/唯一约束。删除失败时整个事务回滚，不影响其他环境同 Key；删除成功后该环境可用同 Key 新建不同 UUID。删除既有 seed Flag 后，重新执行 seed 会重新创建该演示 Flag。
 
 ## 8. 已知限制
 
 - 无登录/权限/真实用户审计身份，operator 固定 admin；默认密码为本地开发示例。
-- 并发 last-write-wins，无乐观锁。仅布尔 Flag、equals/in、顶层属性；未做百分比灰度、嵌套路径、Flag 删除、SDK、部署流水线等可选扩展。
+- 并发 last-write-wins，无乐观锁。仅布尔 Flag、equals/in、顶层属性；未做百分比灰度、嵌套路径、SDK、部署流水线等可选扩展。
 - JSON数字 float64，超安全整数可能丢精度；大整数用户ID应使用字符串，并配置字符串规则。前端拒绝 Infinity 溢出。
-- 无前端自动化框架；build 存在 >500KB chunk提示，尚未分包优化。
+- 前端自动化使用 Node/jsdom，不能替代完整跨浏览器端到端验证；build 存在 >500KB chunk提示，尚未分包优化。
 - 本轮 `npm audit` 报告 4 项（3 moderate / 1 high），涉及锁定的 Vite 5.4.21 开发服务器、esbuild 与 react-router 6 依赖；包括 Windows 开发服务器路径绕过问题。修复建议涉及 major 升级，未在本次既定版本范围内升级；未声称 audit 零问题，当前验证范围为本地演示。
 - 复制 curl 的生成/转义/点击反馈已有验证；实际操作系统剪贴板读回为空，尚未验证完整剪贴板写入，成功提示不能替代读回证据。
 - 最终真实UI、重启持久化、PG删卷重建及新checkout按README启动已验证；83条功能清单证据见T5-acceptance。验证限于本报告环境，不表示所有平台或可选扩展均已覆盖。
@@ -208,4 +213,4 @@ docs/ai-logs/
 └── requirements-validation-2026-10-10.md # 早期失败audit历史
 ```
 
-docs/plan/ 保存统一设计、边界表和任务规范；frontend/evidence/ 保存报告注明来源的截图。历史报告中的待实现状态只反映当时基线，最终状态以T5为准。
+docs/plan/ 保存统一设计、边界表和任务规范；frontend/evidence/ 保存报告注明来源的截图。历史报告中的待实现状态只反映当时基线；原始交付以 T5 为准，本次三项变更以 console-fixes-2026-10-10.md 为准。
