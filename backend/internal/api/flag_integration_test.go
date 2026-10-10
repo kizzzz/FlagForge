@@ -243,7 +243,7 @@ func TestValidationAndErrorEnvelope(t *testing.T) {
 	expectCode(t, request(t, h, "GET", "/api/v1/flags/not-uuid", "", 400), "VALIDATION_ERROR")
 	expectCode(t, request(t, h, "GET", "/api/v1/flags/urn:uuid:"+id, "", 400), "VALIDATION_ERROR")
 	expectCode(t, request(t, h, "GET", "/missing", "", 404), "VALIDATION_ERROR")
-	expectCode(t, request(t, h, "DELETE", "/api/v1/flags/"+id, "", 405), "VALIDATION_ERROR")
+	expectCode(t, request(t, h, "PUT", "/api/v1/flags/"+id, "", 405), "VALIDATION_ERROR")
 	require.Equal(t, "ok", request(t, h, "GET", "/healthz", "", 200)["status"])
 }
 

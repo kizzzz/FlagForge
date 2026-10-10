@@ -31,6 +31,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	v1.GET("/flags", h.List)
 	v1.GET("/flags/:id", h.Detail)
 	v1.PATCH("/flags/:id", h.Update)
+	v1.DELETE("/flags/:id", h.Delete)
 	v1.PATCH("/flags/:id/status", h.Status)
 	v1.GET("/flags/:id/history", h.History)
 	v1.POST("/flags/:id/copy", h.Copy)

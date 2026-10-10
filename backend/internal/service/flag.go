@@ -18,6 +18,15 @@ type FlagService struct{ db *gorm.DB }
 
 func NewFlagService(db *gorm.DB) *FlagService { return &FlagService{db: db} }
 
+// Delete removes the Flag and its dependent rules/history in one transaction.
+// PostgreSQL's cascading foreign keys ensure a failed dependent delete rolls back.
+func (s *FlagService) Delete(ctx context.Context, id string) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return repo.NewFlagRepo(tx).Delete(ctx, id)
+	})
+	return flagError(err, "", "")
+}
+
 // pgx may scan timestamptz into the process's local time zone. Normalize at
 // the service boundary so JSON dates consistently follow the UTC contract.
 func flagUTC(flag *model.Flag) *model.Flag {

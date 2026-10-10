@@ -128,3 +128,16 @@ func (h *FlagHandler) History(c *gin.Context) {
 	}
 	RespondPage(c, items, r.Page, r.PageSize, total)
 }
+
+func (h *FlagHandler) Delete(c *gin.Context) {
+	id, err := flagID(c)
+	if err != nil {
+		HandleError(c, err)
+		return
+	}
+	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+		HandleError(c, err)
+		return
+	}
+	c.Status(204)
+}
