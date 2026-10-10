@@ -17,7 +17,7 @@
 
 ## 2. 快速开始
 
-依赖：Go ≥1.22、Node 24.x + npm（本次验证 24.13.0）、Git Bash（Windows）或 Bash、curl、Docker Desktop/Engine + Compose（Linux 容器）。计划的 Node 18 基线满足 smoke 自身，但当前锁定的前端传递依赖要求更高版本；前端请使用已验证的 Node 24.x。使用 PostgreSQL 16，可改用已有本地 PostgreSQL。GNU Make 可选。默认端口：前端 5173、Go 8787、PG 55432。Windows 安装后重新打开终端刷新 PATH；Docker Desktop 使用 WSL2 时首次启用虚拟机平台可能需要重启。
+依赖：Go ≥1.22、Node 24.x + npm（本次验证 Node 24.13.0 / npm 11.6.2）、Git Bash（Windows）或 Bash、curl、Docker Desktop/Engine + Compose（Linux 容器）。计划的 Node 18 基线满足 smoke 自身，但当前锁定的前端传递依赖要求更高版本；前端请使用已验证的 Node 24.x。使用 PostgreSQL 16，可改用已有本地 PostgreSQL。GNU Make 可选。默认端口：前端 5173、Go 8787、PG 55432。Windows 安装后重新打开终端刷新 PATH；Docker Desktop 使用 WSL2 时首次启用虚拟机平台可能需要重启。
 
 在仓库根目录 Git Bash/Bash 安装迁移工具与依赖：
 
@@ -179,8 +179,9 @@ Smoke 使用 Bash/curl/已有 Node≥18 JSON断言，不需要 jq/Python。序�
 - 并发 last-write-wins，无乐观锁。仅布尔 Flag、equals/in、顶层属性；未做百分比灰度、嵌套路径、Flag 删除、SDK、部署流水线等可选扩展。
 - JSON数字 float64，超安全整数可能丢精度；大整数用户ID应使用字符串，并配置字符串规则。前端拒绝 Infinity 溢出。
 - 无前端自动化框架；build 存在 >500KB chunk提示，尚未分包优化。
-- 复制 curl 的生成/转义/点击反馈已有验证；操作系统剪贴板读回待最终现场核实，成功提示不能替代读回证据。
-- T5最终真实 UI 与新checkout/PG重建证据正在收口；尚无证据的条目在验收报告明确标注，不能据 mock 推断完成。
+- 本轮 `npm audit` 报告 4 项（3 moderate / 1 high），涉及锁定的 Vite 5.4.21 开发服务器、esbuild 与 react-router 6 依赖；包括 Windows 开发服务器路径绕过问题。修复建议涉及 major 升级，未在本次既定版本范围内升级；未声称 audit 零问题，当前验证范围为本地演示。
+- 复制 curl 的生成/转义/点击反馈已有验证；实际操作系统剪贴板读回为空，尚未验证完整剪贴板写入，成功提示不能替代读回证据。
+- 最终真实UI、重启持久化、PG删卷重建及新checkout按README启动已验证；83条功能清单证据见T5-acceptance。验证限于本报告环境，不表示所有平台或可选扩展均已覆盖。
 - 48小时正式提交时限无法仅由Git证明；仓库交付不表示已向题目接收方正式提交。早期失败audit保留历史快照，闭环见T5报告。
 
 ## 9. AI 使用说明

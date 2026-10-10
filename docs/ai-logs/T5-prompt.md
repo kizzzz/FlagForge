@@ -88,3 +88,13 @@ evaluate 默认 → 停用 → evaluate 断言 false+disabled → history 断言
 
 写 `docs/ai-logs/T5-report.md`（模板同 T0 + 验收统计：✅/⚠️/❌ 数量与分布），
 然后 `git commit -m "chore(T5): integration acceptance, README and AI-logs archive"` 并打 tag。
+
+## 本轮调度补充（2026-10-10，非原计划正文）
+
+基线8d2524f；独立worktree为C:/Users/77230/FlagForge/.worktrees/t5，分支codex/t5-release。T3a/T3b/T4b已完成独立规格与质量审查后合并。
+
+T5 executor负责README九节、smoke真实curl/Node断言、默认MSW=false、83条证据与日志；root负责真实UI、主线进程、备份后的PG重建、无node_modules/产物的新checkout和独立coldGOCACHE冷复现。先提交可重放prepare版本供root审查合并，再等待实际证据完成最终记录。未经证据不得将pending标为通过。
+
+executor不停止root5173/8787/Docker，不删除数据库卷、现有依赖或全局缓存；自有临时服务使用独立端口与schema，并清理。不要创建下级agents。不擅自改已审查后端/前端业务语义，大问题记录上报。tag v1.0.0由root最终审查合并后在主线创建，避免指向未合并分支。
+
+AI说明保留真实设计/调度摘要与8任务prompt/report，不伪造模型身份、逐字聊天或48小时正式提交。复制与批量均已完成；如实保留admin、last-write-wins、顶层属性、float64、无Flag删除、无前端测试框架、chunk提示和OS剪贴板读回的实际限制。
