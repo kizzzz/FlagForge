@@ -106,6 +106,17 @@ export const handlers = [
     const flag = flags.find(flag => flag.id === params.id)
     return flag ? HttpResponse.json({ ...flag, rules: rules.filter(rule => rule.flag_id === flag.id).sort((a, b) => a.priority - b.priority) }) : notFound()
   }),
+  http.delete(`${base}/:id`, async ({ params }) => {
+    await delay(450)
+    const id = String(params.id)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return error(400, 'INVALID_ID', 'Flag ID 必须为合法 UUID')
+    const index = flags.findIndex(flag => flag.id === id)
+    if (index < 0) return notFound()
+    flags.splice(index, 1)
+    for (let index = rules.length - 1; index >= 0; index -= 1) { if (rules[index].flag_id === id) rules.splice(index, 1) }
+    histories.delete(id)
+    return new HttpResponse(null, { status: 204 })
+  }),
   http.patch(`${base}/:id/status`, async ({ params, request }) => {
     await delay(900)
     const flag = flags.find(flag => flag.id === params.id)

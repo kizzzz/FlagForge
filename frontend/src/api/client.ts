@@ -88,6 +88,7 @@ export const flagApi = {
   get: (id: string, options?: RequestOptions) => request<FlagDetail>(`/flags/${encodeURIComponent(id)}`, {}, options),
   create: (body: CreateFlag, options?: RequestOptions) => request<Flag>('/flags', { method: 'POST', body: JSON.stringify(body) }, options),
   update: (id: string, body: UpdateFlag, options?: RequestOptions) => request<Flag>(`/flags/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }, options),
+  remove: (id: string, options?: RequestOptions) => request<void>(`/flags/${encodeURIComponent(id)}`, { method: 'DELETE' }, options),
   setStatus: (id: string, enabled: boolean, options?: RequestOptions) => request<Flag>(`/flags/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ enabled }) }, options),
   history: (id: string, query: { page?: number; page_size?: number } = {}, options?: RequestOptions) => request<Paged<History>>(`/flags/${encodeURIComponent(id)}/history?${queryString(query)}`, {}, options),
 }

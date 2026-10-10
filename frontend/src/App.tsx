@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { App as AntApp, ConfigProvider, Layout, Menu, Result, Typography } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -12,6 +12,9 @@ import './App.css'
 function Shell() {
   const { message } = AntApp.useApp()
   const location = useLocation()
+  const isConsole = location.pathname === '/console'
+  const [consoleVisited, setConsoleVisited] = useState(isConsole)
+  useEffect(() => { if (isConsole) setConsoleVisited(true) }, [isConsole])
   useLayoutEffect(() => {
     setApiErrorReporter(error => { void message.error(error.message) })
     return () => setApiErrorReporter(() => undefined)
@@ -25,12 +28,13 @@ function Shell() {
       ]} />
     </Layout.Header>
     <Layout.Content className="app-content">
+      {(consoleVisited || isConsole) && <div hidden={!isConsole}><ConsolePage /></div>}
       <Routes>
         <Route path="/" element={<FlagListPage />} />
         <Route path="/flags/new" element={<FlagEditPage />} />
         <Route path="/flags/:id/edit" element={<FlagEditPage />} />
         <Route path="/flags/:id" element={<FlagDetailPage />} />
-        <Route path="/console" element={<ConsolePage />} />
+        <Route path="/console" element={null} />
         <Route path="*" element={<Result status="404" title="页面不存在" extra={<Link to="/">返回列表</Link>} />} />
       </Routes>
     </Layout.Content>

@@ -9,15 +9,15 @@ import type { Environment, FlagListItem, ListFlagsQuery, Paged } from '../../api
 const colors = { development: 'cyan', staging: 'gold', production: 'purple' }
 const emptyPage: Paged<FlagListItem> = { items: [], page: 1, page_size: 20, total: 0 }
 export default function FlagListPage() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const [query, setQuery] = useState<ListFlagsQuery>({ page: 1, page_size: 20 })
   const [search, setSearch] = useState('')
   const [data, setData] = useState(emptyPage)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
-  const [pending, setPending] = useState<Record<string, boolean>>({})
-  const pendingRef = useRef<Record<string, boolean>>({})
+  const [pending, setPending] = useState<Record<string, boolean | 'delete'>>({})
+  const pendingRef = useRef<Record<string, boolean | 'delete'>>({})
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function FlagListPage() {
         setQuery(previous => ({ ...previous, page, page_size: result.page_size }))
         return
       }
-      setData({ ...result, items: result.items.map(row => ({ ...row, enabled: pendingRef.current[row.id] ?? row.enabled })) })
+      setData({ ...result, items: result.items.map(row => ({ ...row, enabled: typeof pendingRef.current[row.id] === 'boolean' ? pendingRef.current[row.id] as boolean : row.enabled })) })
     }).catch(() => { if (!controller.signal.aborted) setFailed(true) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
@@ -61,15 +61,36 @@ export default function FlagListPage() {
       if (mounted.current) setPending({ ...pendingRef.current })
     }
   }
+  function confirmDelete(row: FlagListItem) {
+    if (row.id in pendingRef.current) return
+    modal.confirm({
+      title: '删除整个 Flag？',
+      content: <><p><strong>{row.key}</strong> / {row.environment}</p><p>相关规则与操作历史一并删除，无法撤销。</p></>,
+      okText: '删除', cancelText: '取消', okButtonProps: { danger: true },
+      async onOk() {
+        if (row.id in pendingRef.current) return
+        pendingRef.current[row.id] = 'delete'; setPending({ ...pendingRef.current })
+        try {
+          await flagApi.remove(row.id)
+          if (mounted.current) { void message.success('Flag 已删除'); setReload(value => value + 1) }
+        } catch {
+          // The API reporter displays the error; preserve the row so deletion can be retried.
+        } finally {
+          delete pendingRef.current[row.id]
+          if (mounted.current) setPending({ ...pendingRef.current })
+        }
+      },
+    })
+  }
   const columns: ColumnsType<FlagListItem> = [
     { title: '名称', dataIndex: 'name', width: 180, render: (name, row) => <Link to={`/flags/${row.id}`}>{name}</Link> },
     { title: 'Key', dataIndex: 'key', width: 240, render: key => <Typography.Text className="flag-key" copyable={{ text: key }}>{key}</Typography.Text> },
     { title: '环境', dataIndex: 'environment', width: 135, render: (env: Environment) => <Tag color={colors[env]}>{env}</Tag> },
-    { title: '启用', dataIndex: 'enabled', width: 90, render: (enabled: boolean, row) => <Switch aria-label={`${row.name}启用状态`} checked={enabled} loading={row.id in pending} onChange={value => { void toggle(row, value) }} /> },
+    { title: '启用', dataIndex: 'enabled', width: 90, render: (enabled: boolean, row) => <Switch aria-label={`${row.name}启用状态`} checked={enabled} disabled={row.id in pending} loading={row.id in pending} onChange={value => { void toggle(row, value) }} /> },
     { title: '默认值', dataIndex: 'default_value', width: 90, render: value => <Tag>{String(value)}</Tag> },
     { title: '规则数', dataIndex: 'rule_count', width: 80 },
     { title: '更新时间', dataIndex: 'updated_at', width: 170, render: value => dayjs(value).format('YYYY-MM-DD HH:mm') },
-    { title: '操作', width: 105, render: (_, row) => <Space><Link to={`/flags/${row.id}`}>详情</Link><Link to={`/flags/${row.id}/edit`}>编辑</Link></Space> },
+    { title: '操作', width: 180, render: (_, row) => <Space><Link to={`/flags/${row.id}`}>详情</Link><Link to={`/flags/${row.id}/edit`}>编辑</Link><Button danger type="link" disabled={row.id in pending} onClick={() => confirmDelete(row)}>删除</Button></Space> },
   ]
   return <>
     <div className="page-heading"><div><Typography.Title level={2}>Flag 列表</Typography.Title><Typography.Text type="secondary">按环境查看与管理功能开关</Typography.Text></div><Link to="/flags/new"><Button type="primary">新建 Flag</Button></Link></div>
