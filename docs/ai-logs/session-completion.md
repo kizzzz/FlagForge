@@ -50,3 +50,11 @@ T3a、T3b、T4b 与 T5 准备版本均经规格审查与代码质量审查后合
 - 冷复现服务停止、端口释放后恢复最新 public 备份；仅清理 root 自建 `t5-ui-persistence` 的两个明确 UUID。原四 seed UUID 保留，最终 4/7/4、migration1/dirty=false。主线重新使用默认真实 API 启动以便交付预览。
 
 最终 T5 逐项验收、独立审查结论与交付版本在 T5-acceptance/T5-report 及后续主线发布记录中列明；未执行远程推送或对外正式提交。
+
+## 最终审查与本地交付
+
+- 独立整项目质量审查对 `88fcb37` 返回 PASS，未发现新的 P0/P1/P2 核心问题；最终文档质量复核 `e0600f2` 与过程记录 `cfa49e1` 亦 PASS。
+- 独立 T5 规格审查对 `e0600f2` 返回 PASS：83 项唯一编号与原清单同集、差异 0，各组全通过；九节 README、八任务三层记录、真实契约/冷复现及已知限制完整。采纳唯一可选 P3 文案反馈，将验收 1.11 的测试函数名与100中文说明分隔，未改变证据或代码。
+- 最终 T5 归档合并为 `ed74998`；主目录真实 API 恢复预览在 `84d6548` 保存 `frontend/evidence/T5-final-preview.png`，CN/pro 为 true/#2、两条 Trace；主线 health200、列表四 seed 再确认。
+- 已停止并移除 T3a/T3b/T4b 和冷复现的临时 worktree，保留全部任务分支；清理前逐一验证绝对路径位于项目 `.worktrees/`、没有未提交源码。npm ci 后生成的 mockServiceWorker 仅换行缓存标记，内容 diff 为零，刷新索引后工作区干净。
+- 发布按 T5 提示词创建本地 `v1.0.0`，源代码包使用 `git archive` 导出到 `C:/Users/77230/FlagForge-v1.0.0-20261010.zip`；包含源码、迁移、测试、README、AI 记录与界面证据，排除被忽略的依赖、编译缓存和本地数据库备份。数据库备份仍保留主目录 backend/bin，演示服务保留主目录默认端口。

@@ -16,7 +16,7 @@
 | 1.8 | PATCH 只改 name，summary 只记 name 变化 | history `flag_updated.changes` 仅含 name | ✅ | TestPatchPresenceAndExactDiff：改name且同值default/description，changes长度1，仅name old/new。 |
 | 1.9 | PATCH 传与现值相同的字段 | 该字段不进 changes；全同则不写 history | ✅ | TestPatchPresenceAndExactDiff：全同PATCH与{}均200，history仍2；混合更新仅真实两字段。 |
 | 1.10 | 创建 / 修改不存在的 flag id | 404 `FLAG_NOT_FOUND` | ✅ | T5 root真实HTTP PATCH随机不存在UUID404 FLAG_NOT_FOUND；TestValidationAndErrorEnvelope的GET详情/history同样404；POST是创建新资源，不定位既有flag id。 |
-| 1.11 | name 带 Unicode（中文）| 201（name 无字符集限制，仅长度） | ✅ | create辅助函数经真实POST使用中文name，201并trim回中文开关；TestFlagValidationBoundaries100中文合法。 |
+| 1.11 | name 带 Unicode（中文）| 201（name 无字符集限制，仅长度） | ✅ | create辅助函数经真实POST使用中文name，201并trim回中文开关；TestFlagValidationBoundaries 的100中文边界用例合法。 |
 ## 组 2：Flag 启停与列表（T3a / T4a）
 
 | # | 场景 | 预期 | 判定 | 实际证据 |
