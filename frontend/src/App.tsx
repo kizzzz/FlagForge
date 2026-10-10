@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { App as AntApp, ConfigProvider, Layout, Menu, Result, Typography } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes, useMatch } from 'react-router-dom'
 import { setApiErrorReporter } from './api/client'
 import FlagListPage from './pages/FlagListPage'
 import FlagEditPage from './pages/FlagEditPage'
@@ -11,8 +11,7 @@ import './App.css'
 
 function Shell() {
   const { message } = AntApp.useApp()
-  const location = useLocation()
-  const isConsole = location.pathname === '/console'
+  const isConsole = Boolean(useMatch('/console'))
   const [consoleVisited, setConsoleVisited] = useState(isConsole)
   useEffect(() => { if (isConsole) setConsoleVisited(true) }, [isConsole])
   useLayoutEffect(() => {
@@ -22,7 +21,7 @@ function Shell() {
   return <Layout className="app-shell">
     <Layout.Header className="app-header">
       <Link className="brand" to="/">FlagForge</Link>
-      <Menu mode="horizontal" selectedKeys={[location.pathname === '/console' ? 'console' : 'flags']} items={[
+      <Menu mode="horizontal" selectedKeys={[isConsole ? 'console' : 'flags']} items={[
         { key: 'flags', label: <Link to="/">Flag 列表</Link> },
         { key: 'console', label: <Link to="/console">评估控制台</Link> },
       ]} />

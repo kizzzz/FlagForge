@@ -37,10 +37,10 @@ export default function FlagInputs() {
   const feedback = loading ? '正在加载 Flag 候选…' : failed ? <Space>候选加载失败，仍可自定义输入<Button size="small" onMouseDown={event => event.preventDefault()} onClick={() => { void refresh() }}>重试</Button></Space> : !flags.length ? '此环境暂无 Flag，可自定义输入 Key' : !flags.some(matches) ? '没有匹配的 Flag，可继续使用自定义 Key' : undefined
   return <div className="console-target">
     <Form.Item name="flag_key" label="Flag Key" extra={feedback} rules={[{ required: true, whitespace: true, message: '请输入 Flag Key' }]}>
-      <AutoComplete placeholder="输入或选择 Flag Key" open={open} onOpenChange={setOpen} onBlur={() => setOpen(false)} onFocus={() => { setOpen(true); setSearch(''); void refresh() }} onSearch={setSearch}
+      <AutoComplete placeholder="输入或选择 Flag Key" getPopupContainer={trigger => trigger.parentElement ?? trigger} open={open} onOpenChange={setOpen} onBlur={() => setOpen(false)} onFocus={() => { setOpen(true); setSearch(''); void refresh() }} onSearch={setSearch}
         options={flags.map(flag => ({ value: flag.key, search: `${flag.key} ${flag.name}`.toLowerCase(), label: <Space><Typography.Text>{flag.key}</Typography.Text><Typography.Text type="secondary">{flag.name}</Typography.Text><Tag color={flag.enabled ? 'green' : 'default'}>{flag.enabled ? '已启用' : '已停用'}</Tag></Space> }))}
         filterOption={(_, option) => Boolean(option?.search.includes(search.toLowerCase()))} />
     </Form.Item>
-    <Form.Item name="environment" label="环境" rules={[{ required: true }]}><Select options={environments.map(value => ({ value, label: value }))} /></Form.Item>
+    <Form.Item name="environment" label="环境" rules={[{ required: true }]}><Select getPopupContainer={trigger => trigger.parentElement ?? trigger} options={environments.map(value => ({ value, label: value }))} /></Form.Item>
   </div>
 }

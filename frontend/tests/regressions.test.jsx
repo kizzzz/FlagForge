@@ -51,6 +51,10 @@ async function chooseOption(select, text) {
   await settle()
 }
 async function chooseEnvironment(env) { await chooseOption(host.querySelector('[id$="environment"]').closest('.ant-select'), env) }
+async function navigateWithoutClick(path) {
+  await act(async () => { window.history.pushState({}, '', path); window.dispatchEvent(new window.PopStateEvent('popstate')) })
+  await settle()
+}
 afterEach(async () => {
   if (root) await act(async () => root.unmount())
   root = undefined; host?.remove(); document.body.innerHTML = ''; window.history.replaceState({}, '', '/console')
@@ -254,4 +258,41 @@ test('console retains a server evaluation error through route navigation without
   await click([...host.querySelectorAll('a')].find(item => item.textContent === '评估控制台'))
   assert.ok(host.textContent.includes('Flag 不存在：检查 key 与环境'))
   assert.equal(requests.filter(item => item.method === 'POST').length, 1)
+})
+
+test('fresh trailing-slash console route renders and selects console, retaining drafts on navigation', async () => {
+  network(({ url }) => response(page([], 0, 1, Number(url.searchParams.get('page_size') ?? 20))))
+  window.history.replaceState({}, '', '/console/')
+  await mount(<App />)
+  assert.ok(keyInput(), 'trailing-slash console route renders the form')
+  assert.equal(host.querySelector('.ant-menu-item-selected').textContent, '评估控制台')
+  await input(keyInput(), 'trailing-slash-draft')
+  await click([...host.querySelectorAll('a')].find(item => item.textContent === 'Flag 列表'))
+  await click([...host.querySelectorAll('a')].find(item => item.textContent === '评估控制台'))
+  assert.equal(keyInput().value, 'trailing-slash-draft')
+})
+
+test('no-click navigation hides the open Key popup with its retained console', async () => {
+  network(({ url }) => response(page([flag('candidate-key')], 1, 1, Number(url.searchParams.get('page_size') ?? 20))))
+  await mount(<App />); await focusKey()
+  await waitFor(() => document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)'), 'Key popup opened')
+  const popup = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
+  const draft = keyInput().value
+  await navigateWithoutClick('/')
+  assert.ok(popup.closest('[hidden]'), 'open Key popup stays inside the hidden console after popstate navigation')
+  await navigateWithoutClick('/console')
+  assert.equal(keyInput().value, draft)
+})
+
+test('no-click navigation hides the open environment popup with its retained console', async () => {
+  network(({ url }) => response(page([], 0, 1, Number(url.searchParams.get('page_size') ?? 20))))
+  await mount(<App />)
+  const selector = host.querySelector('#single-evaluation_environment').closest('.ant-select').querySelector('.ant-select-selector')
+  await act(async () => selector.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })))
+  await waitFor(() => document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)'), 'environment popup opened')
+  const popup = document.querySelector('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
+  await navigateWithoutClick('/')
+  assert.ok(popup.closest('[hidden]'), 'open environment popup stays inside the hidden console after popstate navigation')
+  await navigateWithoutClick('/console')
+  assert.equal(host.querySelector('#single-evaluation_environment').closest('.ant-select').querySelector('.ant-select-selection-item').textContent, 'production')
 })
